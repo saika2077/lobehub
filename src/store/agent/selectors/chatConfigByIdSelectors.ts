@@ -63,15 +63,23 @@ const isMemoryToolEnabledById = (agentId: string) => (s: AgentStoreState) =>
 const getMemoryToolEffortById = (agentId: string) => (s: AgentStoreState) =>
   getChatConfigById(agentId)(s).memory?.effort ?? 'medium';
 
+const getLocalSystemConfigById = (agentId: string) => (s: AgentStoreState) =>
+  getChatConfigById(agentId)(s).localSystem;
+
+const isLocalSystemEnabledById = (agentId: string) => (s: AgentStoreState) =>
+  getChatConfigById(agentId)(s).localSystem?.enabled ?? true;
+
 export const chatConfigByIdSelectors = {
   getChatConfigById,
   getEnableHistoryCountById,
   getHistoryCountById,
   getMemoryToolConfigById,
   getMemoryToolEffortById,
+  getLocalSystemConfigById,
   getSearchFCModelById,
   getSearchModeById,
   getUseModelBuiltinSearchById,
   isEnableSearchById,
   isMemoryToolEnabledById,
+  isLocalSystemEnabledById,
 };

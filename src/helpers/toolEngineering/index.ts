@@ -2,6 +2,7 @@
  * Tools Engineering - Unified tools processing using ToolsEngine
  */
 import { KnowledgeBaseManifest } from '@lobechat/builtin-tool-knowledge-base';
+import { LocalSystemManifest } from '@lobechat/builtin-tool-local-system';
 import { MemoryManifest } from '@lobechat/builtin-tool-memory';
 import { WebBrowsingManifest } from '@lobechat/builtin-tool-web-browsing';
 import { defaultToolIds } from '@lobechat/builtin-tools';
@@ -105,6 +106,7 @@ export const createAgentToolsEngine = (workingModel: WorkingModel) => {
         [KnowledgeBaseManifest.identifier]: agentSelectors.hasEnabledKnowledgeBases(agentState),
         [MemoryManifest.identifier]: agentChatConfigSelectors.isMemoryToolEnabled(agentState),
         [WebBrowsingManifest.identifier]: searchConfig.useApplicationBuiltinSearchTool,
+        [LocalSystemManifest.identifier]: agentChatConfigSelectors.isLocalSystemEnabled(agentState)
       },
     }),
   });

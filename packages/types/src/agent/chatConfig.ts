@@ -133,6 +133,7 @@ export interface LobeAgentChatConfig extends AgentMemoryChatConfig {
  * Zod schema for LocalSystemConfig
  */
 export const LocalSystemConfigSchema = z.object({
+  enabled: z.boolean().optional(),
   workingDirectory: z.string().optional(),
 });
 

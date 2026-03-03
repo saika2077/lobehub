@@ -12,6 +12,10 @@ export type AgentMode = 'auto' | 'plan' | 'ask' | 'implement';
  */
 export interface LocalSystemConfig {
   /**
+   * Whether Local System is enabled (desktop only, default true on desktop)
+   */
+  enabled?: boolean;
+  /**
    * Local System working directory (desktop only)
    */
   workingDirectory?: string;

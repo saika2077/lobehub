@@ -30,6 +30,9 @@ const historyCount = (s: AgentStoreState): number =>
 const isMemoryToolEnabled = (s: AgentStoreState) =>
   chatConfigByIdSelectors.isMemoryToolEnabledById(s.activeAgentId || '')(s);
 
+const isLocalSystemEnabled = (s: AgentStoreState) =>
+  chatConfigByIdSelectors.isLocalSystemEnabledById(s.activeAgentId || '')(s);
+
 const enableHistoryDivider =
   (historyLength: number, currentIndex: number) => (s: AgentStoreState) => {
     const config = currentChatConfig(s);
@@ -49,6 +52,7 @@ export const agentChatConfigSelectors = {
   historyCount,
   isAgentEnableSearch,
   isMemoryToolEnabled,
+  isLocalSystemEnabled,
   searchFCModel,
   useModelBuiltinSearch,
 };
