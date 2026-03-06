@@ -39,11 +39,11 @@ export const INTEGRATION_PROVIDERS: IntegrationProvider[] = [
       appId: 'Application ID',
       publicKey: 'Public Key',
       token: 'Bot Token',
-      webhook: 'Interactions Endpoint URL',
     },
     icon: SiDiscord,
     id: 'discord',
     name: 'Discord',
+    webhookMode: 'auto',
   },
   {
     autoAppId: true,
