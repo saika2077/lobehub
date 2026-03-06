@@ -1,6 +1,6 @@
 import { Flexbox, Icon, Skeleton, Tag } from '@lobehub/ui';
 import { createStaticStyles, cssVar } from 'antd-style';
-import { MessageSquareDashed } from 'lucide-react';
+import { HashIcon, MessageSquareDashed } from 'lucide-react';
 import { AnimatePresence, m as motion } from 'motion/react';
 import { memo, Suspense, useCallback, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -213,7 +213,9 @@ const TopicItem = memo<TopicItemProps>(({ id, title, fav, active, threadId, meta
               return <ProviderIcon color={provider.color} size={16} />;
             }
           }
-          return <span style={{ display: 'inline-block', height: 18, width: 18 }} />;
+          return (
+            <Icon icon={HashIcon} size={'small'} style={{ color: cssVar.colorTextDescription }} />
+          );
         })()}
         slots={{
           iconPostfix: unreadNode,
