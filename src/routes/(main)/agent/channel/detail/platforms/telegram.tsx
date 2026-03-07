@@ -6,7 +6,7 @@ import { FormInput, FormPassword } from '@/components/FormInput';
 import type { ChannelProvider } from '../../const';
 
 export const getTelegramFormItems = (
-  t: TFunction,
+  t: TFunction<'agent'>,
   hasConfig: boolean,
   provider: ChannelProvider,
 ): FormItemProps[] => [
