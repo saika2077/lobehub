@@ -38,6 +38,7 @@ export const getLarkFormItems = (
     desc: t('channel.verificationTokenHint'),
     label: t('channel.verificationToken'),
     name: 'verificationToken',
+    rules: [{ required: true }],
     tag: provider.fieldTags.verificationToken,
   },
   {

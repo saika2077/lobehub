@@ -29,7 +29,7 @@ export class LarkAdapter implements Adapter<LarkThreadId, LarkRawMessage> {
   readonly name: string;
   private readonly api: LarkApiClient;
   private readonly encryptKey?: string;
-  private readonly verificationToken?: string;
+  private readonly verificationToken: string;
   private readonly platform: 'lark' | 'feishu';
   private readonly formatConverter: LarkFormatConverter;
   private _userName: string;
@@ -108,11 +108,13 @@ export class LarkAdapter implements Adapter<LarkThreadId, LarkRawMessage> {
       }
     }
 
-    // Verify token if configured.
+    // Verify token (optional — skip if not configured).
     // Token location varies: v2 events use header.token, url_verification uses body.token.
-    const token = body.header?.token ?? body.token;
-    if (this.verificationToken && this.verificationToken !== token) {
-      return new Response('Invalid verification token', { status: 401 });
+    if (this.verificationToken) {
+      const token = body.header?.token ?? body.token;
+      if (this.verificationToken !== token) {
+        return new Response('Invalid verification token', { status: 401 });
+      }
     }
 
     // URL verification challenge (after token check)

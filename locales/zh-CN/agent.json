@@ -47,6 +47,6 @@
   "channel.updateFailed": "更新状态失败",
   "channel.validationError": "请填写应用 ID 和 Token",
   "channel.verificationToken": "Verification Token",
-  "channel.verificationTokenHint": "可选。用于验证事件推送来源。",
-  "channel.verificationTokenPlaceholder": "可选的验证令牌"
+  "channel.verificationTokenHint": "用于验证事件推送来源。",
+  "channel.verificationTokenPlaceholder": "在此粘贴你的 Verification Token"
 }

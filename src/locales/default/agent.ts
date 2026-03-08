@@ -50,6 +50,6 @@ export default {
   'channel.updateFailed': 'Failed to update status',
   'channel.validationError': 'Please fill in Application ID and Token',
   'channel.verificationToken': 'Verification Token',
-  'channel.verificationTokenHint': 'Optional. Used to verify webhook event source.',
-  'channel.verificationTokenPlaceholder': 'Optional verification token',
+  'channel.verificationTokenHint': 'Used to verify webhook event source.',
+  'channel.verificationTokenPlaceholder': 'Paste your verification token here',
 } as const;
