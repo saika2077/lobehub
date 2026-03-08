@@ -13,8 +13,8 @@ export interface LarkBotConfig {
   encryptKey?: string;
   /** 'lark' or 'feishu' — determines API base URL */
   platform?: string;
-  /** Verification token for webhook event validation */
-  verificationToken: string;
+  /** Verification token for webhook event validation (optional) */
+  verificationToken?: string;
 }
 
 /**

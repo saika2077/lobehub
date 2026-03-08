@@ -12,8 +12,8 @@ export interface LarkAdapterConfig {
   platform?: 'lark' | 'feishu';
   /** Bot display name override */
   userName?: string;
-  /** Verification token for webhook event validation */
-  verificationToken: string;
+  /** Verification token for webhook event validation (optional — skip verification when unset) */
+  verificationToken?: string;
 }
 
 /**
