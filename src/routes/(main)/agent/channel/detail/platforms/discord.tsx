@@ -19,6 +19,13 @@ export const getDiscordFormItems = (
     tag: provider.fieldTags.appId,
   },
   {
+    children: <FormInput placeholder={t('channel.publicKeyPlaceholder')} />,
+    desc: t('channel.publicKeyHint'),
+    label: t('channel.publicKey'),
+    name: 'publicKey',
+    tag: provider.fieldTags.publicKey,
+  },
+  {
     children: (
       <FormPassword
         autoComplete="new-password"
@@ -32,12 +39,5 @@ export const getDiscordFormItems = (
     name: 'botToken',
     rules: [{ required: true }],
     tag: provider.fieldTags.token,
-  },
-  {
-    children: <FormInput placeholder={t('channel.publicKeyPlaceholder')} />,
-    desc: t('channel.publicKeyHint'),
-    label: t('channel.publicKey'),
-    name: 'publicKey',
-    tag: provider.fieldTags.publicKey,
   },
 ];
