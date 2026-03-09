@@ -32,16 +32,15 @@ export default defineConfig({
   },
   define: sharedRendererDefine({ isMobile, isElectron: false }),
   resolve: {
-    alias: [
-      {
-        find: /^prismjs$/,
-        replacement: path.resolve(__dirname, 'mocks/prismjs.ts'),
-      },
-      {
-        find: /^prismjs\/components\/.+$/,
-        replacement: path.resolve(__dirname, 'mocks/prismjs.ts'),
-      },
-    ],
+    alias: {
+      // lexical-code-no-prism from GitHub has no dist; use src for Vite to transpile
+      '@lexical/code': path.resolve(__dirname, 'node_modules/lexical-code-no-prism/src/index.ts'),
+      // lexical-code-no-prism internal shared imports (Lexical monorepo structure)
+      'shared/invariant': path.resolve(
+        __dirname,
+        'node_modules/lexical-code-no-prism/src/shared/invariant.ts',
+      ),
+    },
   },
   optimizeDeps: sharedOptimizeDeps,
   plugins: [

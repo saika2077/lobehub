@@ -151,6 +151,7 @@
     ]
   },
   "overrides": {
+    "@lexical/code": "github:Innei/lexical-code-no-prism",
     "pdfjs-dist": "5.4.530",
     "stylelint-config-clean-order": "7.0.0"
   },
@@ -312,6 +313,7 @@
     "langchain": "^0.3.37",
     "langfuse": "^3.38.6",
     "langfuse-core": "^3.38.6",
+    "lexical-code-no-prism": "github:Innei/lexical-code-no-prism",
     "lucide-react": "^0.562.0",
     "mammoth": "^1.11.0",
     "marked": "^17.0.1",
@@ -502,6 +504,7 @@
       "ffmpeg-static"
     ],
     "overrides": {
+      "@lexical/code": "github:Innei/lexical-code-no-prism",
       "@types/react": "19.2.13",
       "better-auth": "1.4.6",
       "better-call": "1.1.8",
