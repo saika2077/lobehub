@@ -1,5 +1,4 @@
-/* eslint-disable sort-keys-fix/sort-keys-fix */
-import { createEnv } from '@t3-oss/env-nextjs';
+import { createEnv } from '@t3-oss/env-core';
 import { z } from 'zod';
 
 const isInVercel = process.env.VERCEL === '1';
@@ -36,6 +35,7 @@ const PLUGINS_INDEX_URL = 'https://registry.npmmirror.com/@lobehub/plugins-index
 
 export const getAppConfig = () => {
   return createEnv({
+    clientPrefix: 'NEXT_PUBLIC_',
     client: {
       NEXT_PUBLIC_ENABLE_SENTRY: z.boolean(),
     },
@@ -52,7 +52,6 @@ export const getAppConfig = () => {
       INTERNAL_APP_URL: z.string().optional(),
       VERCEL_EDGE_CONFIG: z.string().optional(),
       MIDDLEWARE_REWRITE_THROUGH_LOCAL: z.boolean().optional(),
-      ENABLE_AUTH_PROTECTION: z.boolean().optional(),
 
       CDN_USE_GLOBAL: z.boolean().optional(),
       CUSTOM_FONT_FAMILY: z.string().optional(),
@@ -107,7 +106,6 @@ export const getAppConfig = () => {
       APP_URL,
       INTERNAL_APP_URL,
       MIDDLEWARE_REWRITE_THROUGH_LOCAL: process.env.MIDDLEWARE_REWRITE_THROUGH_LOCAL === '1',
-      ENABLE_AUTH_PROTECTION: process.env.ENABLE_AUTH_PROTECTION === '1',
 
       CUSTOM_FONT_FAMILY: process.env.CUSTOM_FONT_FAMILY,
       CUSTOM_FONT_URL: process.env.CUSTOM_FONT_URL,

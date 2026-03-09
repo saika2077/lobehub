@@ -1,33 +1,40 @@
-import type { AgentRuntimeContext, AgentState } from '@lobechat/agent-runtime';
-import type { LobeToolManifest } from '@lobechat/context-engine';
+import { type AgentRuntimeContext, type AgentState } from '@lobechat/agent-runtime';
+import { builtinTools } from '@lobechat/builtin-tools';
+import { LOADING_FLAT } from '@lobechat/const';
+import { type LobeToolManifest } from '@lobechat/context-engine';
 import { type LobeChatDatabase } from '@lobechat/database';
-import type {
-  ExecAgentParams,
-  ExecAgentResult,
-  ExecGroupAgentParams,
-  ExecGroupAgentResult,
-  ExecSubAgentTaskParams,
-  ExecSubAgentTaskResult,
-  UserInterventionConfig,
+import {
+  type ChatTopicBotContext,
+  type ExecAgentParams,
+  type ExecAgentResult,
+  type ExecGroupAgentParams,
+  type ExecGroupAgentResult,
+  type ExecSubAgentTaskParams,
+  type ExecSubAgentTaskResult,
+  type UserInterventionConfig,
 } from '@lobechat/types';
 import { ThreadStatus, ThreadType } from '@lobechat/types';
 import { nanoid } from '@lobechat/utils';
 import debug from 'debug';
 
-import { LOADING_FLAT } from '@/const/message';
 import { AgentModel } from '@/database/models/agent';
+import { AiModelModel } from '@/database/models/aiModel';
 import { MessageModel } from '@/database/models/message';
 import { PluginModel } from '@/database/models/plugin';
 import { ThreadModel } from '@/database/models/thread';
 import { TopicModel } from '@/database/models/topic';
+import { UserModel } from '@/database/models/user';
+import { UserPersonaModel } from '@/database/models/userMemory/persona';
 import {
-  type ServerAgentToolsContext,
   createServerAgentToolsEngine,
-  serverMessagesEngine,
+  type EvalContext,
+  type ServerAgentToolsContext,
 } from '@/server/modules/Mecha';
+import { type ServerUserMemoryConfig } from '@/server/modules/Mecha/ContextEngineering/types';
 import { AgentService } from '@/server/services/agent';
 import { AgentRuntimeService } from '@/server/services/agentRuntime';
-import type { StepLifecycleCallbacks } from '@/server/services/agentRuntime/types';
+import { type StepLifecycleCallbacks } from '@/server/services/agentRuntime/types';
+import { FileService } from '@/server/services/file';
 import { KlavisService } from '@/server/services/klavis';
 import { MarketService } from '@/server/services/market';
 
@@ -62,10 +69,52 @@ function formatErrorForMetadata(error: unknown): Record<string, any> | undefined
  * This extends the public ExecAgentParams with server-side only options
  */
 interface InternalExecAgentParams extends ExecAgentParams {
+  /** Bot context for topic metadata (platform, applicationId, platformThreadId) */
+  botContext?: ChatTopicBotContext;
+  /**
+   * Completion webhook configuration
+   * Persisted in Redis state, triggered via HTTP POST when the operation completes.
+   */
+  completionWebhook?: {
+    body?: Record<string, unknown>;
+    url: string;
+  };
   /** Cron job ID that triggered this execution (if trigger is 'cron') */
   cronJobId?: string;
+  /** Discord context for injecting channel/guild info into agent system message */
+  discordContext?: any;
+  /** Eval context for injecting environment prompts into system message */
+  evalContext?: EvalContext;
+  /** External file URLs to download, upload to S3, and attach to the user message */
+  files?: Array<{
+    mimeType?: string;
+    name?: string;
+    size?: number;
+    url: string;
+  }>;
+  /** Maximum steps for the agent operation */
+  maxSteps?: number;
   /** Step lifecycle callbacks for operation tracking (server-side only) */
   stepCallbacks?: StepLifecycleCallbacks;
+  /**
+   * Step webhook configuration
+   * Persisted in Redis state, triggered via HTTP POST after each step completes.
+   */
+  stepWebhook?: {
+    body?: Record<string, unknown>;
+    url: string;
+  };
+  /**
+   * Whether the LLM call should use streaming.
+   * Defaults to true. Set to false for non-streaming scenarios (e.g., bot integrations).
+   */
+  stream?: boolean;
+  /**
+   * Custom title for the topic.
+   * When provided (including empty string), overrides the default prompt-based title.
+   * When undefined, falls back to prompt.slice(0, 50).
+   */
+  title?: string;
   /** Topic creation trigger source ('cron' | 'chat' | 'api') */
   trigger?: string;
   /**
@@ -73,6 +122,12 @@ interface InternalExecAgentParams extends ExecAgentParams {
    * Use { approvalMode: 'headless' } for async tasks that should never wait for human approval
    */
   userInterventionConfig?: UserInterventionConfig;
+  /**
+   * Webhook delivery method.
+   * - 'fetch': plain HTTP POST (default)
+   * - 'qstash': deliver via QStash publishJSON for guaranteed delivery
+   */
+  webhookDelivery?: 'fetch' | 'qstash';
 }
 
 /**
@@ -130,11 +185,21 @@ export class AiAgentService {
       prompt,
       appContext,
       autoStart = true,
+      botContext,
+      discordContext,
       existingMessageIds = [],
+      files,
       stepCallbacks,
+      stream,
+      title,
       trigger,
       cronJobId,
+      evalContext,
+      maxSteps,
       userInterventionConfig,
+      completionWebhook,
+      stepWebhook,
+      webhookDelivery,
     } = params;
 
     // Validate that either agentId or slug is provided
@@ -156,18 +221,28 @@ export class AiAgentService {
     // Use actual agent ID from config for subsequent operations
     const resolvedAgentId = agentConfig.id;
 
-    log('execAgent: got agent config for %s (id: %s)', identifier, resolvedAgentId);
+    log(
+      'execAgent: got agent config for %s (id: %s), model: %s, provider: %s',
+      identifier,
+      resolvedAgentId,
+      agentConfig.model,
+      agentConfig.provider,
+    );
 
     // 2. Handle topic creation: if no topicId provided, create a new topic; otherwise reuse existing
     let topicId = appContext?.topicId;
     if (!topicId) {
-      // Prepare metadata with cronJobId if provided
-      const metadata = cronJobId ? { cronJobId } : undefined;
+      // Prepare metadata with cronJobId and botContext if provided
+      const metadata =
+        cronJobId || botContext
+          ? { bot: botContext, cronJobId: cronJobId || undefined }
+          : undefined;
 
       const newTopic = await this.topicModel.create({
         agentId: resolvedAgentId,
         metadata,
-        title: prompt.slice(0, 50) + (prompt.length > 50 ? '...' : ''),
+        title:
+          title !== undefined ? title : prompt.slice(0, 50) + (prompt.length > 50 ? '...' : ''),
         trigger,
       });
       topicId = newTopic.id;
@@ -191,9 +266,6 @@ export class AiAgentService {
 
     // 4. Get model abilities from model-bank for function calling support check
     const { LOBE_DEFAULT_MODEL_LIST } = await import('model-bank');
-    const modelInfo = LOBE_DEFAULT_MODEL_LIST.find(
-      (m) => m.id === model && m.providerId === provider,
-    );
     const isModelSupportToolUse = (m: string, p: string) => {
       const info = LOBE_DEFAULT_MODEL_LIST.find((item) => item.id === m && item.providerId === p);
       return info?.abilities?.functionCall ?? true;
@@ -231,7 +303,7 @@ export class AiAgentService {
       additionalManifests: [...lobehubSkillManifests, ...klavisManifests],
       agentConfig: {
         chatConfig: agentConfig.chatConfig ?? undefined,
-        plugins: agentConfig.plugins ?? undefined,
+        plugins: agentConfig?.plugins ?? undefined,
       },
       hasEnabledKnowledgeBases,
       model,
@@ -279,31 +351,202 @@ export class AiAgentService {
       klavisManifests.length,
     );
 
-    // 8. Get existing messages if provided
+    // 7.5. Build Agent Management context if agent-management tool is enabled
+    const isAgentManagementEnabled = toolsResult.enabledToolIds?.includes('lobe-agent-management');
+    let agentManagementContext;
+    if (isAgentManagementEnabled) {
+      // Query user's enabled models from database
+      const aiModelModel = new AiModelModel(this.db, this.userId);
+      const allUserModels = await aiModelModel.getAllModels();
+
+      // Filter only enabled chat models and group by provider
+      const providerMap = new Map<
+        string,
+        {
+          id: string;
+          models: Array<{ abilities?: any; description?: string; id: string; name: string }>;
+          name: string;
+        }
+      >();
+
+      for (const userModel of allUserModels) {
+        // Only include enabled chat models
+        if (!userModel.enabled || userModel.type !== 'chat') continue;
+
+        // Get model info from LOBE_DEFAULT_MODEL_LIST for full metadata
+        const modelInfo = LOBE_DEFAULT_MODEL_LIST.find(
+          (m) => m.id === userModel.id && m.providerId === userModel.providerId,
+        );
+
+        if (!providerMap.has(userModel.providerId)) {
+          providerMap.set(userModel.providerId, {
+            id: userModel.providerId,
+            models: [],
+            name: userModel.providerId, // TODO: Map to friendly provider name
+          });
+        }
+
+        const provider = providerMap.get(userModel.providerId)!;
+        provider.models.push({
+          abilities: userModel.abilities || modelInfo?.abilities,
+          description: modelInfo?.description,
+          id: userModel.id,
+          name: userModel.displayName || modelInfo?.displayName || userModel.id,
+        });
+      }
+
+      // Build availablePlugins from all plugin sources
+      // Exclude only truly internal tools (agent-management itself, agent-builder, page-agent)
+      const INTERNAL_TOOLS = new Set([
+        'lobe-agent-management', // Don't show agent-management in its own context
+        'lobe-agent-builder', // Used for editing current agent, not for creating new agents
+        'lobe-group-agent-builder', // Used for editing current group, not for creating new agents
+        'lobe-page-agent', // Page-editor specific tool
+      ]);
+
+      const availablePlugins = [
+        // All builtin tools (including hidden ones like web-browsing, cloud-sandbox)
+        ...builtinTools
+          .filter((tool) => !INTERNAL_TOOLS.has(tool.identifier))
+          .map((tool) => ({
+            description: tool.manifest.meta?.description,
+            identifier: tool.identifier,
+            name: tool.manifest.meta?.title || tool.identifier,
+            type: 'builtin' as const,
+          })),
+        // Lobehub Skills
+        ...lobehubSkillManifests.map((manifest) => ({
+          description: manifest.meta?.description,
+          identifier: manifest.identifier,
+          name: manifest.meta?.title || manifest.identifier,
+          type: 'lobehub-skill' as const,
+        })),
+        // Klavis tools
+        ...klavisManifests.map((manifest) => ({
+          description: manifest.meta?.description,
+          identifier: manifest.identifier,
+          name: manifest.meta?.title || manifest.identifier,
+          type: 'klavis' as const,
+        })),
+      ];
+
+      agentManagementContext = {
+        availablePlugins,
+        // Limit to first 5 providers to avoid context bloat
+        availableProviders: Array.from(providerMap.values()).slice(0, 5),
+      };
+
+      log(
+        'execAgent: built agentManagementContext with %d providers and %d plugins',
+        agentManagementContext.availableProviders.length,
+        agentManagementContext.availablePlugins.length,
+      );
+    }
+
+    // 8. Fetch user persona for memory injection
+    // Persona is user-level global memory, only depends on user's global memory setting
+    let userMemory: ServerUserMemoryConfig | undefined;
+
+    let globalMemoryEnabled = true; // default: enabled (matches DEFAULT_MEMORY_SETTINGS)
+    try {
+      const userModel = new UserModel(this.db, this.userId);
+      const settings = await userModel.getUserSettings();
+      const memorySettings = settings?.memory as { enabled?: boolean } | undefined;
+      globalMemoryEnabled = memorySettings?.enabled !== false;
+    } catch (error) {
+      log('execAgent: failed to fetch user memory settings: %O', error);
+    }
+
+    log('execAgent: memory check — globalMemoryEnabled=%s', globalMemoryEnabled);
+
+    if (globalMemoryEnabled) {
+      try {
+        const personaModel = new UserPersonaModel(this.db, this.userId);
+        const persona = await personaModel.getLatestPersonaDocument();
+
+        if (persona?.persona) {
+          userMemory = {
+            fetchedAt: Date.now(),
+            memories: {
+              contexts: [],
+              experiences: [],
+              persona: {
+                narrative: persona.persona,
+                tagline: persona.tagline,
+              },
+              preferences: [],
+            },
+          };
+          log('execAgent: fetched user persona (version: %d)', persona.version);
+        }
+      } catch (error) {
+        log('execAgent: failed to fetch user persona: %O', error);
+      }
+    }
+
+    // 9. Get existing messages if provided
     let historyMessages: any[] = [];
     if (existingMessageIds.length > 0) {
       historyMessages = await this.messageModel.query({
         sessionId: appContext?.sessionId,
         topicId: appContext?.topicId ?? undefined,
       });
-      if (existingMessageIds.length > 0) {
-        const idSet = new Set(existingMessageIds);
-        historyMessages = historyMessages.filter((msg) => idSet.has(msg.id));
-      }
+      const idSet = new Set(existingMessageIds);
+      historyMessages = historyMessages.filter((msg) => idSet.has(msg.id));
+    } else if (appContext?.topicId) {
+      // Follow-up message in existing topic: load all history for context
+      historyMessages = await this.messageModel.query({
+        sessionId: appContext?.sessionId,
+        topicId: appContext.topicId,
+      });
     }
 
-    // 9. Create user message in database
+    // 9. Upload external files to S3 and collect file IDs
+    let fileIds: string[] | undefined;
+    let imageList: Array<{ alt: string; id: string; url: string }> | undefined;
+
+    if (files && files.length > 0) {
+      const fileService = new FileService(this.db, this.userId);
+      fileIds = [];
+      imageList = [];
+
+      for (const file of files) {
+        const ext = file.name?.split('.').pop() || 'bin';
+        const pathname = `files/${this.userId}/${nanoid()}/${file.name || `file.${ext}`}`;
+
+        try {
+          const result = await fileService.uploadFromUrl(file.url, pathname);
+          fileIds.push(result.fileId);
+
+          // Build imageList for vision-capable models
+          const mimeType = file.mimeType || '';
+          if (mimeType.startsWith('image/')) {
+            imageList.push({ alt: file.name || 'image', id: result.fileId, url: result.url });
+          }
+        } catch (error) {
+          log('execAgent: failed to upload file %s: %O', file.url, error);
+        }
+      }
+
+      if (fileIds.length > 0) {
+        log('execAgent: uploaded %d files to S3', fileIds.length);
+      }
+      if (imageList.length === 0) imageList = undefined;
+    }
+
+    // 10. Create user message in database
     // Include threadId if provided (for SubAgent task execution in isolated Thread)
     const userMessageRecord = await this.messageModel.create({
       agentId: resolvedAgentId,
       content: prompt,
+      files: fileIds,
       role: 'user',
       threadId: appContext?.threadId ?? undefined,
       topicId,
     });
     log('execAgent: created user message %s', userMessageRecord.id);
 
-    // 10. Create assistant message placeholder in database
+    // 11. Create assistant message placeholder in database
     // Include threadId if provided (for SubAgent task execution in isolated Thread)
     const assistantMessageRecord = await this.messageModel.create({
       agentId: resolvedAgentId,
@@ -317,46 +560,13 @@ export class AiAgentService {
     });
     log('execAgent: created assistant message %s', assistantMessageRecord.id);
 
-    // Create user message object for processing
-    const userMessage = { content: prompt, role: 'user' as const };
+    // Create user message object for processing (include imageList for vision models)
+    const userMessage = { content: prompt, imageList, role: 'user' as const };
 
     // Combine history messages with user message
     const allMessages = [...historyMessages, userMessage];
 
-    // 11. Process messages using Server ContextEngineering
-    const processedMessages = await serverMessagesEngine({
-      capabilities: {
-        isCanUseFC: isModelSupportToolUse,
-        isCanUseVideo: () => modelInfo?.abilities?.video ?? false,
-        isCanUseVision: () => modelInfo?.abilities?.vision ?? true,
-      },
-      enableHistoryCount: agentConfig.chatConfig?.enableHistoryCount ?? undefined,
-      historyCount: agentConfig.chatConfig?.historyCount ?? undefined,
-      knowledge: {
-        fileContents: agentConfig.files
-          ?.filter((f: { enabled?: boolean | null }) => f.enabled === true)
-          .map((f: { content?: string | null; id?: string; name?: string }) => ({
-            content: f.content ?? '',
-            fileId: f.id ?? '',
-            filename: f.name ?? '',
-          })),
-        knowledgeBases: agentConfig.knowledgeBases
-          ?.filter((kb: { enabled?: boolean | null }) => kb.enabled === true)
-          .map((kb: { id?: string; name?: string }) => ({
-            id: kb.id ?? '',
-            name: kb.name ?? '',
-          })),
-      },
-      messages: allMessages,
-      model,
-      provider,
-      systemRole: agentConfig.systemRole ?? undefined,
-      toolsConfig: {
-        tools: pluginIds,
-      },
-    });
-
-    log('execAgent: processed %d messages', processedMessages.length);
+    log('execAgent: prepared evalContext for executor');
 
     // 12. Generate operation ID: agt_{timestamp}_{agentId}_{topicId}_{random}
     const timestamp = Date.now();
@@ -376,7 +586,7 @@ export class AiAgentService {
       },
       phase: 'user_input' as const,
       session: {
-        messageCount: processedMessages.length,
+        messageCount: allMessages.length,
         sessionId: operationId,
         status: 'idle' as const,
         stepCount: 0,
@@ -390,7 +600,7 @@ export class AiAgentService {
       model,
       provider,
       tools?.length ?? 0,
-      processedMessages.length,
+      allMessages.length,
       Object.keys(toolManifestMap).length,
     );
 
@@ -407,16 +617,24 @@ export class AiAgentService {
           topicId,
         },
         autoStart,
+        completionWebhook,
+        discordContext,
+        evalContext,
         initialContext,
-        initialMessages: processedMessages,
+        initialMessages: allMessages,
+        maxSteps,
+        stepWebhook,
         modelRuntimeConfig: { model, provider },
         operationId,
         stepCallbacks,
+        stream,
         toolManifestMap,
         toolSourceMap,
         tools,
         userId: this.userId,
         userInterventionConfig,
+        userMemory,
+        webhookDelivery,
       });
 
       log('execAgent: created operation %s (autoStarted: %s)', operationId, result.autoStarted);

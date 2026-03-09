@@ -10,9 +10,10 @@ import {
   Tabs,
   type TabsProps,
 } from '@lobehub/ui';
+import { App } from 'antd';
 import { createStaticStyles, cx } from 'antd-style';
 import isEqual from 'fast-deep-equal';
-import { ChevronDown, ChevronUp, History, Sparkles } from 'lucide-react';
+import { ChevronDown, ChevronUp, History, Sparkles, Undo2 } from 'lucide-react';
 import { memo, useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -66,6 +67,7 @@ export interface CompressedGroupMessageProps {
 
 const CompressedGroupMessage = memo<CompressedGroupMessageProps>(({ id }) => {
   const { t } = useTranslation('chat');
+  const { modal } = App.useApp();
   const [activeTab, setActiveTab] = useState<string>(() => getStoredTab(id));
 
   const handleTabChange = useCallback(
@@ -80,6 +82,16 @@ const CompressedGroupMessage = memo<CompressedGroupMessageProps>(({ id }) => {
   const toggleCompressedGroupExpanded = useConversationStore(
     (s) => s.toggleCompressedGroupExpanded,
   );
+  const cancelCompression = useConversationStore((s) => s.cancelCompression);
+
+  const handleCancelCompression = useCallback(() => {
+    modal.confirm({
+      centered: true,
+      content: t('compression.cancelConfirm'),
+      onOk: () => cancelCompression(id),
+      title: t('compression.cancel'),
+    });
+  }, [id, cancelCompression, modal, t]);
 
   const content = message?.content;
   const rawCompressedMessages = (message as UIChatMessage)?.compressedMessages;
@@ -136,20 +148,28 @@ const CompressedGroupMessage = memo<CompressedGroupMessageProps>(({ id }) => {
           <StreamingMarkdown>{content}</StreamingMarkdown>
         </>
       ) : (
-        <Flexbox align={'center'} distribution={'space-between'} horizontal width={'100%'}>
+        <Flexbox horizontal align={'center'} distribution={'space-between'} width={'100%'}>
           <Tabs
+            compact
             activeKey={isGeneratingSummary ? 'summary' : activeTab}
             className={styles.header}
-            compact
             items={tabItems}
-            onChange={handleTabChange}
             variant={'rounded'}
+            onChange={handleTabChange}
           />
-          <ActionIcon
-            icon={expanded ? ChevronUp : ChevronDown}
-            onClick={() => toggleCompressedGroupExpanded(id)}
-            size={'small'}
-          />
+          <Flexbox horizontal gap={4}>
+            <ActionIcon
+              icon={Undo2}
+              size={'small'}
+              title={t('compression.cancel')}
+              onClick={handleCancelCompression}
+            />
+            <ActionIcon
+              icon={expanded ? ChevronUp : ChevronDown}
+              size={'small'}
+              onClick={() => toggleCompressedGroupExpanded(id)}
+            />
+          </Flexbox>
         </Flexbox>
       )}
       {!showContent ? null : activeTab === 'summary' ? (

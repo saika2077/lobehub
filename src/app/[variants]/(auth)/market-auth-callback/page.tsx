@@ -18,7 +18,7 @@ const MarketAuthCallbackPage = () => {
   const [countdown, setCountdown] = useState(3);
 
   useEffect(() => {
-    console.log('[MarketAuthCallback] Processing authorization callback');
+    console.info('[MarketAuthCallback] Processing authorization callback');
 
     const urlParams = new URLSearchParams(window.location.search);
     const code = urlParams.get('code');
@@ -45,7 +45,7 @@ const MarketAuthCallbackPage = () => {
     }
 
     if (code && state) {
-      console.log('[MarketAuthCallback] Authorization successful, code received');
+      console.info('[MarketAuthCallback] Authorization successful, code received');
       setStatus('success');
       setMessage(t('callback.messages.successWithRedirect'));
 
@@ -146,7 +146,7 @@ const MarketAuthCallbackPage = () => {
   const getExtra = () => {
     if (status === 'error') {
       return (
-        <Button block onClick={() => window.close()} size={'large'} style={{ minWidth: 240 }}>
+        <Button block size={'large'} style={{ minWidth: 240 }} onClick={() => window.close()}>
           {t('callback.buttons.close')}
         </Button>
       );

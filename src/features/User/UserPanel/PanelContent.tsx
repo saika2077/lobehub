@@ -1,15 +1,15 @@
 import { ENABLE_BUSINESS_FEATURES } from '@lobechat/business-const';
 import { Flexbox } from '@lobehub/ui';
-import { memo } from 'react';
+import { type FC } from 'react';
 import { Link } from 'react-router-dom';
 
-import { navigateToDesktopOnboarding } from '@/app/[variants]/(desktop)/desktop-onboarding/navigation';
-import { clearDesktopOnboardingCompleted } from '@/app/[variants]/(desktop)/desktop-onboarding/storage';
-import { DesktopOnboardingScreen } from '@/app/[variants]/(desktop)/desktop-onboarding/types';
 import BusinessPanelContent from '@/business/client/features/User/BusinessPanelContent';
 import BrandWatermark from '@/components/BrandWatermark';
 import Menu from '@/components/Menu';
 import { isDesktop } from '@/const/version';
+import { navigateToDesktopOnboarding } from '@/routes/(desktop)/desktop-onboarding/navigation';
+import { clearDesktopOnboardingCompleted } from '@/routes/(desktop)/desktop-onboarding/storage';
+import { DesktopOnboardingScreen } from '@/routes/(desktop)/desktop-onboarding/types';
 import { useUserStore } from '@/store/user';
 import { authSelectors } from '@/store/user/selectors';
 
@@ -19,7 +19,7 @@ import UserLoginOrSignup from '../UserLoginOrSignup';
 import LangButton from './LangButton';
 import { useMenu } from './useMenu';
 
-const PanelContent = memo<{ closePopover: () => void }>(({ closePopover }) => {
+const PanelContent: FC<{ closePopover: () => void }> = ({ closePopover }) => {
   const isLoginWithAuth = useUserStore(authSelectors.isLoginWithAuth);
   const [openSignIn, signOut] = useUserStore((s) => [s.openLogin, s.logout]);
   const { mainItems, logoutItems } = useMenu();
@@ -66,12 +66,12 @@ const PanelContent = memo<{ closePopover: () => void }>(({ closePopover }) => {
 
       <Menu items={mainItems} onClick={closePopover} />
       <Menu items={logoutItems} onClick={handleSignOut} />
-      <Flexbox gap={4} horizontal justify={'space-between'} style={{ padding: '6px 8px 6px 16px' }}>
+      <Flexbox horizontal gap={4} justify={'space-between'} style={{ padding: '6px 8px 6px 16px' }}>
         <BrandWatermark />
         <LangButton placement={'right' as any} />
       </Flexbox>
     </Flexbox>
   );
-});
+};
 
 export default PanelContent;

@@ -7,33 +7,40 @@ import {
   UsageCounter,
 } from '@lobechat/agent-runtime';
 import { ToolNameResolver } from '@lobechat/context-engine';
+import { parse } from '@lobechat/conversation-flow';
 import { consumeStreamUntilDone } from '@lobechat/model-runtime';
-import { type ChatToolPayload, type MessageToolCall } from '@lobechat/types';
+import { type ChatToolPayload, type MessageToolCall, type UIChatMessage } from '@lobechat/types';
 import { serializePartsForStorage } from '@lobechat/utils';
 import debug from 'debug';
 
 import { type MessageModel } from '@/database/models/message';
 import { type LobeChatDatabase } from '@/database/type';
+import { serverMessagesEngine } from '@/server/modules/Mecha/ContextEngineering';
+import { type EvalContext } from '@/server/modules/Mecha/ContextEngineering/types';
 import { initModelRuntimeFromDB } from '@/server/modules/ModelRuntime';
 import { type ToolExecutionService } from '@/server/services/toolExecution';
 
-import type { IStreamEventManager } from './types';
+import { type IStreamEventManager } from './types';
 
 const log = debug('lobe-server:agent-runtime:streaming-executors');
 const timing = debug('lobe-server:agent-runtime:timing');
 
 // Tool pricing configuration (USD per call)
 const TOOL_PRICING: Record<string, number> = {
-  'lobe-web-browsing/craw': 0.002,
-  'lobe-web-browsing/search': 0.001,
+  'lobe-web-browsing/craw': 0,
+  'lobe-web-browsing/search': 0,
 };
 
 export interface RuntimeExecutorContext {
+  agentConfig?: any;
+  discordContext?: any;
+  evalContext?: EvalContext;
   fileService?: any;
   messageModel: MessageModel;
   operationId: string;
   serverDB: LobeChatDatabase;
   stepIndex: number;
+  stream?: boolean;
   streamManager: IStreamEventManager;
   toolExecutionService: ToolExecutionService;
   topicId?: string;
@@ -56,8 +63,9 @@ export const createRuntimeExecutors = (
     // Fallback to state's modelRuntimeConfig if not in payload
     const model = llmPayload.model || state.modelRuntimeConfig?.model;
     const provider = llmPayload.provider || state.modelRuntimeConfig?.provider;
-    // Fallback to state's tools if not in payload
-    const tools = llmPayload.tools || state.tools;
+    // forceFinish: strip tools so LLM produces pure text output
+    // Otherwise fallback to state's tools if not in payload
+    const tools = state.forceFinish ? undefined : llmPayload.tools || state.tools;
 
     if (!model || !provider) {
       throw new Error('Model and provider are required for call_llm instruction');
@@ -99,11 +107,7 @@ export const createRuntimeExecutors = (
 
     // Publish stream start event
     await streamManager.publishStreamEvent(operationId, {
-      data: {
-        assistantMessage: assistantMessageItem,
-        model,
-        provider,
-      },
+      data: { assistantMessage: assistantMessageItem, model, provider },
       stepIndex,
       type: 'stream_start',
     });
@@ -113,31 +117,99 @@ export const createRuntimeExecutors = (
       let toolsCalling: ChatToolPayload[] = [];
       let tool_calls: MessageToolCall[] = [];
       let thinkingContent = '';
-      let imageList: any[] = [];
+      const imageList: any[] = [];
       let grounding: any = null;
       let currentStepUsage: any = undefined;
+      let streamError: any = undefined;
 
       // Multimodal content parts tracking
       type ContentPart = { text: string; type: 'text' } | { image: string; type: 'image' };
-      let contentParts: ContentPart[] = [];
-      let reasoningParts: ContentPart[] = [];
-      let hasContentImages = false;
-      let hasReasoningImages = false;
+      const contentParts: ContentPart[] = [];
+      const reasoningParts: ContentPart[] = [];
+      const hasContentImages = false;
+      const hasReasoningImages = false;
+
+      // Process messages through serverMessagesEngine to inject system role, knowledge, etc.
+      // Rebuild params from agentConfig at execution time (capabilities built dynamically)
+      const agentConfig = ctx.agentConfig;
+      let processedMessages;
+      if (agentConfig) {
+        const { LOBE_DEFAULT_MODEL_LIST } = await import('model-bank');
+
+        const contextEngineInput = {
+          capabilities: {
+            isCanUseFC: (m: string, p: string) => {
+              const info = LOBE_DEFAULT_MODEL_LIST.find(
+                (item) => item.id === m && item.providerId === p,
+              );
+              return info?.abilities?.functionCall ?? true;
+            },
+            isCanUseVideo: (m: string, p: string) => {
+              const info = LOBE_DEFAULT_MODEL_LIST.find(
+                (item) => item.id === m && item.providerId === p,
+              );
+              return info?.abilities?.video ?? false;
+            },
+            isCanUseVision: (m: string, p: string) => {
+              const info = LOBE_DEFAULT_MODEL_LIST.find(
+                (item) => item.id === m && item.providerId === p,
+              );
+              return info?.abilities?.vision ?? true;
+            },
+          },
+          discordContext: ctx.discordContext,
+          enableHistoryCount: agentConfig.chatConfig?.enableHistoryCount ?? undefined,
+          evalContext: ctx.evalContext,
+          forceFinish: state.forceFinish,
+          historyCount: agentConfig.chatConfig?.historyCount ?? undefined,
+          knowledge: {
+            fileContents: agentConfig.files
+              ?.filter((f: { enabled?: boolean | null }) => f.enabled === true)
+              .map((f: { content?: string | null; id?: string; name?: string }) => ({
+                content: f.content ?? '',
+                fileId: f.id ?? '',
+                filename: f.name ?? '',
+              })),
+            knowledgeBases: agentConfig.knowledgeBases
+              ?.filter((kb: { enabled?: boolean | null }) => kb.enabled === true)
+              .map((kb: { id?: string; name?: string }) => ({
+                id: kb.id ?? '',
+                name: kb.name ?? '',
+              })),
+          },
+          messages: llmPayload.messages as UIChatMessage[],
+          model,
+          provider,
+          systemRole: agentConfig.systemRole ?? undefined,
+          toolsConfig: {
+            tools: agentConfig.plugins ?? [],
+          },
+          userMemory: state.metadata?.userMemory,
+        };
+
+        processedMessages = await serverMessagesEngine(contextEngineInput);
+
+        // Emit context engine event for tracing (captures input params and final LLM messages)
+        events.push({
+          input: contextEngineInput,
+          output: processedMessages,
+          type: 'context_engine_result',
+        } as any);
+      } else {
+        processedMessages = llmPayload.messages;
+      }
 
       // Initialize ModelRuntime (read user's keyVaults from database)
       const modelRuntime = await initModelRuntimeFromDB(ctx.serverDB, ctx.userId!, provider);
 
       // Construct ChatStreamPayload
-      const chatPayload = {
-        messages: llmPayload.messages,
-        model,
-        tools,
-      };
+      const stream = ctx.stream ?? true;
+      const chatPayload = { messages: processedMessages, model, stream, tools };
 
       log(
         `${stagePrefix} calling model-runtime chat (model: %s, messages: %d, tools: %d)`,
         model,
-        llmPayload.messages.length,
+        processedMessages.length,
         tools?.length ?? 0,
       );
 
@@ -145,9 +217,9 @@ export const createRuntimeExecutors = (
       const BUFFER_INTERVAL = 50;
       let textBuffer = '';
       let reasoningBuffer = '';
-      // eslint-disable-next-line no-undef
+
       let textBufferTimer: NodeJS.Timeout | null = null;
-      // eslint-disable-next-line no-undef
+
       let reasoningBufferTimer: NodeJS.Timeout | null = null;
 
       const flushTextBuffer = async () => {
@@ -284,12 +356,25 @@ export const createRuntimeExecutors = (
               toolsCalling: payload,
             });
           },
+          onError: async (errorData) => {
+            streamError = errorData;
+            console.error(`[${operationLogId}][stream_error]`, errorData);
+          },
         },
         user: ctx.userId,
       });
 
       // Consume stream to ensure all callbacks complete execution
       await consumeStreamUntilDone(response);
+
+      // If a stream error was captured via onError callback, throw to propagate the error
+      if (streamError) {
+        const errorMessage =
+          typeof streamError.message === 'string'
+            ? streamError.message
+            : JSON.stringify(streamError);
+        throw new Error(`LLM stream error: ${errorMessage}`);
+      }
 
       await flushTextBuffer();
       await flushReasoningBuffer();
@@ -305,7 +390,13 @@ export const createRuntimeExecutors = (
         reasoningBufferTimer = null;
       }
 
-      log(`[${operationLogId}] finish model-runtime calling`);
+      log(
+        `[${operationLogId}] finish model-runtime calling | content: %d chars | reasoning: %d chars | tools: %d | usage: %s`,
+        content.length,
+        thinkingContent.length,
+        toolsCalling.length,
+        currentStepUsage ? 'yes' : 'none',
+      );
 
       if (thinkingContent) {
         log(`[${operationLogId}][reasoning]`, thinkingContent);
@@ -332,10 +423,10 @@ export const createRuntimeExecutors = (
       await streamManager.publishStreamEvent(operationId, {
         data: {
           finalContent: content,
-          grounding: grounding,
+          grounding,
           imageList: imageList.length > 0 ? imageList : undefined,
           reasoning: thinkingContent || undefined,
-          toolsCalling: toolsCalling,
+          toolsCalling,
           usage: currentStepUsage,
         },
         stepIndex,
@@ -386,7 +477,7 @@ export const createRuntimeExecutors = (
       }
 
       // ===== 2. Then accumulate to AgentState =====
-      let newState = structuredClone(state);
+      const newState = structuredClone(state);
 
       newState.messages.push({
         content,
@@ -417,7 +508,7 @@ export const createRuntimeExecutors = (
             // Pass assistant message ID as parentMessageId for tool calls
             parentMessageId: assistantMessageItem.id,
             result: { content, tool_calls },
-            toolsCalling: toolsCalling,
+            toolsCalling,
           } as GeneralAgentCallLLMResultPayload,
           phase: 'llm_result',
           session: {
@@ -479,6 +570,7 @@ export const createRuntimeExecutors = (
       // Execute tool using ToolExecutionService
       log(`[${operationLogId}] Executing tool ${toolName} ...`);
       const executionResult = await toolExecutionService.executeTool(chatToolPayload, {
+        memoryToolPermission: agentConfig?.chatConfig?.memory?.toolPermission,
         serverDB: ctx.serverDB,
         toolManifestMap: state.toolManifestMap,
         toolResultMaxLength,
@@ -607,10 +699,7 @@ export const createRuntimeExecutors = (
         type: 'error',
       });
 
-      events.push({
-        error: error,
-        type: 'error',
-      });
+      events.push({ error, type: 'error' });
 
       console.error(
         `[StreamingToolExecutor] Tool execution failed for operation ${operationId}:${stepIndex}:`,
@@ -658,6 +747,7 @@ export const createRuntimeExecutors = (
         try {
           log(`[${operationLogId}] Executing tool ${toolName} ...`);
           const executionResult = await toolExecutionService.executeTool(chatToolPayload, {
+            memoryToolPermission: state.metadata?.agentConfig?.chatConfig?.memory?.toolPermission,
             serverDB: ctx.serverDB,
             toolManifestMap: state.toolManifestMap,
             topicId: ctx.topicId,
@@ -717,16 +807,14 @@ export const createRuntimeExecutors = (
 
           events.push({ id: chatToolPayload.id, result: executionResult, type: 'tool_result' });
 
-          // Accumulate usage
+          // Collect per-tool usage for post-batch accumulation
           const toolCost = TOOL_PRICING[toolName] || 0;
-          UsageCounter.accumulateTool({
-            cost: state.cost,
+          toolResults.at(-1).usageParams = {
             executionTime,
             success: isSuccess,
             toolCost,
             toolName,
-            usage: state.usage,
-          });
+          };
         } catch (error) {
           console.error(`[${operationLogId}] Tool execution failed for ${toolName}:`, error);
 
@@ -749,22 +837,35 @@ export const createRuntimeExecutors = (
       `[${operationLogId}][call_tools_batch] All tools executed, created ${toolMessageIds.length} tool messages`,
     );
 
-    // Refresh messages from database to ensure state is in sync
+    // Accumulate tool usage sequentially after all tools have finished
     const newState = structuredClone(state);
+    for (const result of toolResults) {
+      if (result.usageParams) {
+        const { usage, cost } = UsageCounter.accumulateTool({
+          ...result.usageParams,
+          cost: newState.cost,
+          usage: newState.usage,
+        });
+        newState.usage = usage;
+        if (cost) newState.cost = cost;
+      }
+    }
+
+    // Refresh messages from database to ensure state is in sync
 
     // Query latest messages from database
+    // Must pass agentId to ensure correct query scope, otherwise when topicId is undefined,
+    // the query will use isNull(topicId) condition which won't find messages with actual topicId
     const latestMessages = await ctx.messageModel.query({
+      agentId: state.metadata?.agentId,
+      threadId: state.metadata?.threadId,
       topicId: state.metadata?.topicId,
     });
 
-    // Convert DB messages to LLM format with id
-    newState.messages = latestMessages.map((msg: any) => ({
-      content: msg.content,
-      id: msg.id,
-      role: msg.role,
-      tool_call_id: msg.tool_call_id,
-      tool_calls: msg.tool_calls,
-    }));
+    // Use conversation-flow parse to resolve branching into linear flat list
+    // parse() handles assistantGroup, compare, supervisor, etc. virtual message types
+    const { flatList } = parse(latestMessages);
+    newState.messages = flatList;
 
     log(
       `[${operationLogId}][call_tools_batch] Refreshed ${newState.messages.length} messages from database`,

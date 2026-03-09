@@ -15,7 +15,7 @@ import {
 } from '@lobehub/ui';
 import { cx } from 'antd-style';
 import { Check, LucideBolt } from 'lucide-react';
-import { memo, useEffect, useState } from 'react';
+import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import urlJoin from 'url-join';
@@ -23,34 +23,29 @@ import urlJoin from 'url-join';
 import { ModelItemRender, ProviderItemRender } from '@/components/ModelSelect';
 
 import { styles } from '../../styles';
-import type { ModelWithProviders } from '../../types';
+import { type ModelWithProviders } from '../../types';
 import { menuKey } from '../../utils';
+import ModelDetailPanel from '../ModelDetailPanel';
 
 interface MultipleProvidersModelItemProps {
   activeKey: string;
   data: ModelWithProviders;
-  isScrolling: boolean;
   newLabel: string;
   onClose: () => void;
   onModelChange: (modelId: string, providerId: string) => Promise<void>;
 }
 
 export const MultipleProvidersModelItem = memo<MultipleProvidersModelItemProps>(
-  ({ activeKey, data, isScrolling, newLabel, onModelChange, onClose }) => {
+  ({ activeKey, data, newLabel, onModelChange, onClose }) => {
     const { t } = useTranslation('components');
     const navigate = useNavigate();
     const [submenuOpen, setSubmenuOpen] = useState(false);
 
-    useEffect(() => {
-      if (isScrolling) {
-        setSubmenuOpen(false);
-      }
-    }, [isScrolling]);
-
-    const isActive = data.providers.some((p) => menuKey(p.id, data.model.id) === activeKey);
+    const activeProvider = data.providers.find((p) => menuKey(p.id, data.model.id) === activeKey);
+    const isActive = !!activeProvider;
 
     return (
-      <DropdownMenuSubmenuRoot onOpenChange={setSubmenuOpen} open={submenuOpen}>
+      <DropdownMenuSubmenuRoot open={submenuOpen} onOpenChange={setSubmenuOpen}>
         <DropdownMenuSubmenuTrigger
           className={cx(menuSharedStyles.item, isActive && styles.menuItemActive)}
           style={{ paddingBlock: 8, paddingInline: 8 }}
@@ -63,8 +58,12 @@ export const MultipleProvidersModelItem = memo<MultipleProvidersModelItemProps>(
           />
         </DropdownMenuSubmenuTrigger>
         <DropdownMenuPortal>
-          <DropdownMenuPositioner anchor={null} placement="rightTop" sideOffset={-4}>
-            <DropdownMenuPopup className={styles.dropdownMenu}>
+          <DropdownMenuPositioner anchor={null} placement="right" sideOffset={12}>
+            <DropdownMenuPopup className={cx(styles.detailPopup, styles.dropdownMenu)}>
+              <ModelDetailPanel
+                model={data.model.id}
+                provider={(activeProvider ?? data.providers[0]).id}
+              />
               <DropdownMenuGroup>
                 <DropdownMenuGroupLabel>
                   {t('ModelSwitchPanel.useModelFrom')}
@@ -98,6 +97,8 @@ export const MultipleProvidersModelItem = memo<MultipleProvidersModelItemProps>(
                         <ActionIcon
                           className={'settings-icon'}
                           icon={LucideBolt}
+                          size={'small'}
+                          title={t('ModelSwitchPanel.goToSettings')}
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
@@ -108,8 +109,6 @@ export const MultipleProvidersModelItem = memo<MultipleProvidersModelItemProps>(
                               navigate(url);
                             }
                           }}
-                          size={'small'}
-                          title={t('ModelSwitchPanel.goToSettings')}
                         />
                       </DropdownMenuItemExtra>
                     </DropdownMenuItem>

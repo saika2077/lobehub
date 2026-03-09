@@ -11,14 +11,12 @@ export type TimeGroupId =
   | `${number}-${string}`
   | `${number}`;
 
-/* eslint-disable typescript-sort-keys/string-enum */
 export enum TopicDisplayMode {
   ByTime = 'byTime',
   Flat = 'flat',
   // AscMessages = 'ascMessages',
   // DescMessages = 'descMessages',
 }
-/* eslint-enable */
 
 export interface GroupedTopic {
   children: ChatTopic[];
@@ -35,7 +33,14 @@ export interface TopicUserMemoryExtractRunState {
   traceId?: string;
 }
 
+export interface ChatTopicBotContext {
+  applicationId: string;
+  platform: string;
+  platformThreadId: string;
+}
+
 export interface ChatTopicMetadata {
+  bot?: ChatTopicBotContext;
   /**
    * Cron job ID that triggered this topic creation (if created by scheduled task)
    */
@@ -155,8 +160,16 @@ export interface SharedTopicData {
   groupMeta?: {
     avatar?: string | null;
     backgroundColor?: string | null;
-    members?: { avatar: string | null; backgroundColor: string | null }[];
+    createdAt?: Date | null;
+    members?: {
+      avatar: string | null;
+      backgroundColor: string | null;
+      id: string;
+      title: string | null;
+    }[];
     title?: string | null;
+    updatedAt?: Date | null;
+    userId?: string | null;
   };
   shareId: string;
   title: string | null;

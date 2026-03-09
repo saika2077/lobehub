@@ -1,94 +1,87 @@
-/* eslint-disable sort-keys-fix/sort-keys-fix , typescript-sort-keys/interface */
-import { createEnv } from '@t3-oss/env-nextjs';
+import { createEnv } from '@t3-oss/env-core';
 import { z } from 'zod';
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace NodeJS {
     interface ProcessEnv {
-      // ===== Better Auth ===== //
-      AUTH_SECRET?: string;
-      AUTH_EMAIL_VERIFICATION?: string;
-      AUTH_ENABLE_MAGIC_LINK?: string;
-      AUTH_SSO_PROVIDERS?: string;
-      AUTH_TRUSTED_ORIGINS?: string;
       AUTH_ALLOWED_EMAILS?: string;
-
-      // ===== Auth Provider Credentials ===== //
-      AUTH_GOOGLE_ID?: string;
-      AUTH_GOOGLE_SECRET?: string;
-
+      AUTH_APPLE_APP_BUNDLE_IDENTIFIER?: string;
       AUTH_APPLE_CLIENT_ID?: string;
       AUTH_APPLE_CLIENT_SECRET?: string;
-      AUTH_APPLE_APP_BUNDLE_IDENTIFIER?: string;
-
-      AUTH_GITHUB_ID?: string;
-      AUTH_GITHUB_SECRET?: string;
-
-      AUTH_COGNITO_ID?: string;
-      AUTH_COGNITO_SECRET?: string;
-      AUTH_COGNITO_ISSUER?: string;
-      AUTH_COGNITO_DOMAIN?: string;
-      AUTH_COGNITO_REGION?: string;
-      AUTH_COGNITO_USERPOOL_ID?: string;
-
-      AUTH_MICROSOFT_ID?: string;
-      AUTH_MICROSOFT_SECRET?: string;
-
       AUTH_AUTH0_ID?: string;
-      AUTH_AUTH0_SECRET?: string;
       AUTH_AUTH0_ISSUER?: string;
+      AUTH_AUTH0_SECRET?: string;
 
       AUTH_AUTHELIA_ID?: string;
-      AUTH_AUTHELIA_SECRET?: string;
       AUTH_AUTHELIA_ISSUER?: string;
 
+      AUTH_AUTHELIA_SECRET?: string;
       AUTH_AUTHENTIK_ID?: string;
-      AUTH_AUTHENTIK_SECRET?: string;
       AUTH_AUTHENTIK_ISSUER?: string;
 
+      AUTH_AUTHENTIK_SECRET?: string;
       AUTH_CASDOOR_ID?: string;
-      AUTH_CASDOOR_SECRET?: string;
+
       AUTH_CASDOOR_ISSUER?: string;
-
+      AUTH_CASDOOR_SECRET?: string;
       AUTH_CLOUDFLARE_ZERO_TRUST_ID?: string;
-      AUTH_CLOUDFLARE_ZERO_TRUST_SECRET?: string;
       AUTH_CLOUDFLARE_ZERO_TRUST_ISSUER?: string;
+      AUTH_CLOUDFLARE_ZERO_TRUST_SECRET?: string;
+      AUTH_COGNITO_DOMAIN?: string;
 
+      AUTH_COGNITO_ID?: string;
+      AUTH_COGNITO_ISSUER?: string;
+      AUTH_COGNITO_REGION?: string;
+      AUTH_COGNITO_SECRET?: string;
+
+      AUTH_COGNITO_USERPOOL_ID?: string;
+      AUTH_DISABLE_EMAIL_PASSWORD?: string;
+      AUTH_EMAIL_VERIFICATION?: string;
+
+      AUTH_ENABLE_MAGIC_LINK?: string;
       AUTH_FEISHU_APP_ID?: string;
       AUTH_FEISHU_APP_SECRET?: string;
 
       AUTH_GENERIC_OIDC_ID?: string;
-      AUTH_GENERIC_OIDC_SECRET?: string;
       AUTH_GENERIC_OIDC_ISSUER?: string;
+      AUTH_GENERIC_OIDC_SECRET?: string;
 
+      AUTH_GITHUB_ID?: string;
+      AUTH_GITHUB_SECRET?: string;
+      // ===== Auth Provider Credentials ===== //
+      AUTH_GOOGLE_ID?: string;
+
+      AUTH_GOOGLE_SECRET?: string;
       AUTH_KEYCLOAK_ID?: string;
-      AUTH_KEYCLOAK_SECRET?: string;
       AUTH_KEYCLOAK_ISSUER?: string;
 
+      AUTH_KEYCLOAK_SECRET?: string;
       AUTH_LOGTO_ID?: string;
-      AUTH_LOGTO_SECRET?: string;
+
       AUTH_LOGTO_ISSUER?: string;
+      AUTH_LOGTO_SECRET?: string;
+      AUTH_MICROSOFT_AUTHORITY_URL?: string;
+
+      AUTH_MICROSOFT_ID?: string;
+      AUTH_MICROSOFT_SECRET?: string;
+      AUTH_MICROSOFT_TENANT_ID?: string;
 
       AUTH_OKTA_ID?: string;
-      AUTH_OKTA_SECRET?: string;
       AUTH_OKTA_ISSUER?: string;
+      AUTH_OKTA_SECRET?: string;
+
+      // ===== Better Auth ===== //
+      AUTH_SECRET?: string;
+      AUTH_SSO_PROVIDERS?: string;
+      AUTH_TRUSTED_ORIGINS?: string;
 
       AUTH_WECHAT_ID?: string;
       AUTH_WECHAT_SECRET?: string;
 
       AUTH_ZITADEL_ID?: string;
-      AUTH_ZITADEL_SECRET?: string;
       AUTH_ZITADEL_ISSUER?: string;
-
-      // ===== JWKS Key ===== //
-      /**
-       * Generic JWKS key for signing/verifying JWTs.
-       * Used for internal service authentication and other cryptographic operations.
-       * Must be a JWKS JSON string containing an RS256 RSA key pair.
-       * Can be generated using `node scripts/generate-oidc-jwk.mjs`.
-       */
-      JWKS_KEY?: string;
+      AUTH_ZITADEL_SECRET?: string;
 
       /**
        * Internal JWT expiration time for lambda → async calls.
@@ -98,12 +91,22 @@ declare global {
        * @default '30s'
        */
       INTERNAL_JWT_EXPIRATION?: string;
+
+      // ===== JWKS Key ===== //
+      /**
+       * Generic JWKS key for signing/verifying JWTs.
+       * Used for internal service authentication and other cryptographic operations.
+       * Must be a JWKS JSON string containing an RS256 RSA key pair.
+       * Can be generated using `node scripts/generate-oidc-jwk.mjs`.
+       */
+      JWKS_KEY?: string;
     }
   }
 }
 
 export const getAuthConfig = () => {
   return createEnv({
+    clientPrefix: 'NEXT_PUBLIC_',
     client: {},
     server: {
       AUTH_SECRET: z.string().optional(),
@@ -112,6 +115,7 @@ export const getAuthConfig = () => {
       AUTH_EMAIL_VERIFICATION: z.boolean().optional().default(false),
       AUTH_ENABLE_MAGIC_LINK: z.boolean().optional().default(false),
       AUTH_ALLOWED_EMAILS: z.string().optional(),
+      AUTH_DISABLE_EMAIL_PASSWORD: z.boolean().optional().default(false),
 
       AUTH_GOOGLE_ID: z.string().optional(),
       AUTH_GOOGLE_SECRET: z.string().optional(),
@@ -130,8 +134,10 @@ export const getAuthConfig = () => {
       AUTH_COGNITO_REGION: z.string().optional(),
       AUTH_COGNITO_USERPOOL_ID: z.string().optional(),
 
+      AUTH_MICROSOFT_AUTHORITY_URL: z.string().optional(),
       AUTH_MICROSOFT_ID: z.string().optional(),
       AUTH_MICROSOFT_SECRET: z.string().optional(),
+      AUTH_MICROSOFT_TENANT_ID: z.string().optional(),
 
       AUTH_AUTH0_ID: z.string().optional(),
       AUTH_AUTH0_SECRET: z.string().optional(),
@@ -199,6 +205,7 @@ export const getAuthConfig = () => {
       AUTH_SSO_PROVIDERS: process.env.AUTH_SSO_PROVIDERS,
       AUTH_TRUSTED_ORIGINS: process.env.AUTH_TRUSTED_ORIGINS,
       AUTH_ALLOWED_EMAILS: process.env.AUTH_ALLOWED_EMAILS,
+      AUTH_DISABLE_EMAIL_PASSWORD: process.env.AUTH_DISABLE_EMAIL_PASSWORD === '1',
 
       // Cognito provider specific env vars
       AUTH_COGNITO_DOMAIN: process.env.AUTH_COGNITO_DOMAIN,
@@ -216,8 +223,10 @@ export const getAuthConfig = () => {
       AUTH_GITHUB_ID: process.env.AUTH_GITHUB_ID,
       AUTH_GITHUB_SECRET: process.env.AUTH_GITHUB_SECRET,
 
+      AUTH_MICROSOFT_AUTHORITY_URL: process.env.AUTH_MICROSOFT_AUTHORITY_URL,
       AUTH_MICROSOFT_ID: process.env.AUTH_MICROSOFT_ID,
       AUTH_MICROSOFT_SECRET: process.env.AUTH_MICROSOFT_SECRET,
+      AUTH_MICROSOFT_TENANT_ID: process.env.AUTH_MICROSOFT_TENANT_ID,
 
       AUTH_COGNITO_ID: process.env.AUTH_COGNITO_ID,
       AUTH_COGNITO_SECRET: process.env.AUTH_COGNITO_SECRET,

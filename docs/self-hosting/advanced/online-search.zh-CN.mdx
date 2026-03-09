@@ -46,6 +46,24 @@ CRAWLER_IMPLS="naive,search1api"
 
 ---
 
+## `CRAWL_CONCURRENCY`
+
+控制单次网页抓取任务的并发数量，默认值为 `3`。在低配置服务器上建议设置为 `1` 以降低 CPU 峰值。
+
+```env
+CRAWL_CONCURRENCY=3
+```
+
+## `CRAWLER_RETRY`
+
+控制单个 URL 的抓取失败重试次数，默认值为 `1`（即最多尝试 2 次）。
+
+```env
+CRAWLER_RETRY=1
+```
+
+---
+
 ## `SEARCH_PROVIDERS`
 
 配置联网搜索使用的搜索引擎提供商。
@@ -186,7 +204,7 @@ SEARXNG_URL=https://searxng-instance.com
 
 您可以在 [SearXNG 实例列表](https://searx.space/) 中找到公开可用的 SearXNG 实例。选择一个响应速度快、可靠性高的实例，然后将其 URL 配置到 LobeHub 中。
 
-> 注意，使用的 `searxng` 必须开启 `json` 输出，否则 `lobe-chat` 调用会报错。如果是自托管，类似下面这样，找到 `searxng` 的配置文件，追加 `json` 即可。
+> 注意，使用的 `searxng` 必须开启 `json` 输出，否则 `lobehub` 调用会报错。如果是自托管，类似下面这样，找到 `searxng` 的配置文件，追加 `json` 即可。
 
 ```bash
 $ vi searxng/settings.yml

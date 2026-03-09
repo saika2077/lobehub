@@ -14,7 +14,8 @@ import { type McpConnectionParams } from '@/types/plugins';
 import { type LobeToolCustomPlugin } from '@/types/tool/plugin';
 
 import ConfigDisplay from './ConfigDisplay';
-import { type McpInstallRequest, TRUSTED_MARKETPLACES, type TrustedMarketplaceId } from './types';
+import { type McpInstallRequest, type TrustedMarketplaceId } from './types';
+import { TRUSTED_MARKETPLACES } from './types';
 
 interface CustomPluginInstallModalProps {
   installRequest: McpInstallRequest | null;
@@ -60,9 +61,6 @@ const CustomPluginInstallModal = memo<CustomPluginInstallModalProps>(
 
       setLoading(true);
       try {
-        // 第三方市场和自定义插件：构建自定义插件数据
-        let customPlugin: LobeToolCustomPlugin;
-
         // 合并原始配置和用户更新的配置
         const finalConfig = {
           ...schema.config,
@@ -73,7 +71,7 @@ const CustomPluginInstallModal = memo<CustomPluginInstallModalProps>(
         // 自定义插件：先测试连接获取真实的 manifest
         const testParams: McpConnectionParams = {
           connection: finalConfig,
-          identifier: identifier,
+          identifier,
           metadata: {
             avatar: schema.icon,
             description: schema.description,
@@ -90,8 +88,9 @@ const CustomPluginInstallModal = memo<CustomPluginInstallModalProps>(
           throw new Error(t('protocolInstall.messages.manifestNotFound'));
         }
 
+        // 第三方市场和自定义插件：构建自定义插件数据
         // 使用测试连接获取的真实 manifest
-        customPlugin = {
+        const customPlugin: LobeToolCustomPlugin = {
           customParams: {
             avatar: schema.icon,
             description: schema.description,
@@ -175,22 +174,22 @@ const CustomPluginInstallModal = memo<CustomPluginInstallModalProps>(
 
     return (
       <Modal
+        open
         confirmLoading={loading || testState.loading}
         okText={okText}
-        onCancel={handleCancel}
-        onOk={handleConfirm}
-        open
         title={modalTitle}
         width={680}
+        onCancel={handleCancel}
+        onOk={handleConfirm}
       >
         <Flexbox gap={24}>
           {renderAlert()}
 
-          <Block gap={16} horizontal justify={'space-between'} padding={16} variant={'outlined'}>
-            <Flexbox gap={16} horizontal>
+          <Block horizontal gap={16} justify={'space-between'} padding={16} variant={'outlined'}>
+            <Flexbox horizontal gap={16}>
               <PluginAvatar avatar={schema.icon} size={40} />
               <Flexbox gap={2}>
-                <Flexbox align={'center'} gap={8} horizontal>
+                <Flexbox horizontal align={'center'} gap={8}>
                   {schema.name}
                   <PluginTag type={'customPlugin'} />
                 </Flexbox>
@@ -202,13 +201,13 @@ const CustomPluginInstallModal = memo<CustomPluginInstallModalProps>(
           </Block>
 
           <Flexbox>
-            <ConfigDisplay onConfigUpdate={setUpdatedConfig} schema={schema} />
+            <ConfigDisplay schema={schema} onConfigUpdate={setUpdatedConfig} />
             {/* 显示测试连接错误 */}
             {testState.error && (
               <Alert
                 closable
-                description={testState.error}
                 showIcon
+                description={testState.error}
                 title={t('protocolInstall.messages.connectionTestFailed')}
                 type="error"
                 variant={'filled'}

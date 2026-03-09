@@ -2,7 +2,8 @@ import { type LobeChatDatabase } from '@lobechat/database';
 
 import { AsyncTaskModel } from '@/database/models/asyncTask';
 import { FileModel } from '@/database/models/file';
-import { type ChunkContentParams, ContentChunk } from '@/server/modules/ContentChunk';
+import { type ChunkContentParams } from '@/server/modules/ContentChunk';
+import { ContentChunk } from '@/server/modules/ContentChunk';
 import { createAsyncCaller } from '@/server/routers/async';
 import {
   AsyncTaskError,
@@ -87,7 +88,7 @@ export class ChunkService {
     const asyncCaller = await createAsyncCaller({ userId: this.userId });
 
     // trigger parse file task asynchronously
-    asyncCaller.file.parseFileToChunks({ fileId: fileId, taskId: asyncTaskId }).catch(async (e) => {
+    asyncCaller.file.parseFileToChunks({ fileId, taskId: asyncTaskId }).catch(async (e) => {
       console.error('[ParseFileToChunks] error:', e);
 
       await this.asyncTaskModel.update(asyncTaskId, {

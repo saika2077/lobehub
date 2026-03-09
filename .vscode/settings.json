@@ -6,17 +6,9 @@
   },
   "editor.formatOnSave": true,
   // don't show errors, but fix when save and git pre commit
-  "eslint.rules.customizations": [
-    // { "rule": "import/order", "severity": "off" },
-    // { "rule": "prettier/prettier", "severity": "off" },
-    // { "rule": "react/jsx-sort-props", "severity": "off" },
-    // { "rule": "sort-keys-fix/sort-keys-fix", "severity": "off" },
-    // { "rule": "simple-import-sort/exports", "severity": "off" },
-    // { "rule": "typescript-sort-keys/interface", "severity": "off" }
-  ],
+  "eslint.rules.customizations": [],
   "eslint.validate": [
-    // vscode eslint not 插件兼容性有问题
-    // "json",
+    "json",
     "javascript",
     "javascriptreact",
     "typescript",
@@ -24,6 +16,7 @@
     // support mdx
     "mdx"
   ],
+  "mdx.server.enable": false,
   "npm.packageManager": "pnpm",
   "search.exclude": {
     "**/node_modules": true,
@@ -51,7 +44,9 @@
     // make stylelint work with tsx antd-style css template string
     "typescriptreact"
   ],
-  "vitest.maximumConfigs": 20,
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "vitest.disableWorkspaceWarning": true,
+  "vitest.maximumConfigs": 10,
   "workbench.editor.customLabels.patterns": {
     "**/app/**/[[]*[]]/[[]*[]]/page.tsx": "${dirname(2)}/${dirname(1)}/${dirname} • page component",
     "**/app/**/[[]*[]]/page.tsx": "${dirname(1)}/${dirname} • page component",

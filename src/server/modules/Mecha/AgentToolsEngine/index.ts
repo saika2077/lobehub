@@ -12,15 +12,15 @@
 import { KnowledgeBaseManifest } from '@lobechat/builtin-tool-knowledge-base';
 import { LocalSystemManifest } from '@lobechat/builtin-tool-local-system';
 import { WebBrowsingManifest } from '@lobechat/builtin-tool-web-browsing';
-import { type LobeToolManifest, ToolsEngine } from '@lobechat/context-engine';
+import { builtinTools, defaultToolIds } from '@lobechat/builtin-tools';
+import { type LobeToolManifest } from '@lobechat/context-engine';
+import { ToolsEngine } from '@lobechat/context-engine';
 import debug from 'debug';
 
-import { builtinTools } from '@/tools';
-
-import type {
-  ServerAgentToolsContext,
-  ServerAgentToolsEngineConfig,
-  ServerCreateAgentToolsEngineParams,
+import {
+  type ServerAgentToolsContext,
+  type ServerAgentToolsEngineConfig,
+  type ServerCreateAgentToolsEngineParams,
 } from './types';
 
 export type {
@@ -93,7 +93,7 @@ export const createServerAgentToolsEngine = (
     model,
     provider,
   } = params;
-  const searchMode = agentConfig.chatConfig?.searchMode ?? 'off';
+  const searchMode = agentConfig.chatConfig?.searchMode ?? 'auto';
   const isSearchEnabled = searchMode !== 'off';
 
   log(
@@ -108,7 +108,7 @@ export const createServerAgentToolsEngine = (
     // Pass additional manifests (e.g., LobeHub Skills)
     additionalManifests,
     // Add default tools based on configuration
-    defaultToolIds: [WebBrowsingManifest.identifier, KnowledgeBaseManifest.identifier],
+    defaultToolIds,
     // Create search-aware enableChecker for this request
     enableChecker: ({ pluginId }) => {
       // Filter LocalSystem tool on server (it's desktop-only)
