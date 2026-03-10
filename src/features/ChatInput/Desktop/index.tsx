@@ -18,7 +18,7 @@ import { systemStatusSelectors } from '@/store/global/selectors';
 import { type ActionToolbarProps } from '../ActionBar';
 import ActionBar from '../ActionBar';
 import InputEditor from '../InputEditor';
-import RuntimeEnv from '../RuntimeEnv';
+import RuntimeConfig from '../RuntimeConfig';
 import SendArea from '../SendArea';
 import TypoBar from '../TypoBar';
 import ContextContainer from './ContextContainer';
@@ -60,13 +60,13 @@ interface DesktopChatInputProps extends ActionToolbarProps {
   leftContent?: ReactNode;
   sendAreaPrefix?: ReactNode;
   showFootnote?: boolean;
-  showRuntimeEnv?: boolean;
+  showRuntimeConfig?: boolean;
 }
 
 const DesktopChatInput = memo<DesktopChatInputProps>(
   ({
     showFootnote,
-    showRuntimeEnv = true,
+    showRuntimeConfig = true,
     inputContainerProps,
     extentHeaderContent,
     actionBarStyle,
@@ -154,7 +154,7 @@ const DesktopChatInput = memo<DesktopChatInputProps>(
         >
           <InputEditor />
         </ChatInput>
-        {showRuntimeEnv && <RuntimeEnv />}
+        {showRuntimeConfig && <RuntimeConfig />}
         {showFootnote && !expand && (
           <Center style={{ pointerEvents: 'none', zIndex: 100 }}>
             <Text className={styles.footnote} type={'secondary'}>

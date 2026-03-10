@@ -7,8 +7,7 @@ import { useTranslation } from 'react-i18next';
 
 import { useUserStore } from '@/store/user';
 import { toolInterventionSelectors } from '@/store/user/selectors';
-
-import { type ApprovalMode } from './index';
+import { type ApprovalMode } from '@/store/user/slices/settings/selectors';
 
 const styles = createStaticStyles(({ css, cssVar }) => ({
   icon: css`

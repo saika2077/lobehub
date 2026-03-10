@@ -20,7 +20,8 @@ import { topicSelectors } from '@/store/chat/selectors';
 
 import { useAgentId } from '../hooks/useAgentId';
 import { useUpdateAgentConfig } from '../hooks/useUpdateAgentConfig';
-import WorkingDirectoryContent from './WorkingDirectoryContent';
+import ApprovalMode from './ApprovalMode';
+import WorkingDirectory from './WorkingDirectory';
 
 const MODE_ICONS: Record<RuntimeEnvMode, typeof LaptopIcon> = {
   cloud: CloudIcon,
@@ -91,7 +92,7 @@ const styles = createStaticStyles(({ css }) => ({
   `,
 }));
 
-const RuntimeEnv = memo(() => {
+const RuntimeConfig = memo(() => {
   const { t } = useTranslation('chat');
   const { t: tPlugin } = useTranslation('plugin');
   const agentId = useAgentId();
@@ -201,9 +202,7 @@ const RuntimeEnv = memo(() => {
           open={dirPopoverOpen}
           placement="topRight"
           trigger="click"
-          content={
-            <WorkingDirectoryContent agentId={agentId} onClose={() => setDirPopoverOpen(false)} />
-          }
+          content={<WorkingDirectory agentId={agentId} onClose={() => setDirPopoverOpen(false)} />}
           onOpenChange={setDirPopoverOpen}
         >
           <div>
@@ -233,27 +232,30 @@ const RuntimeEnv = memo(() => {
   };
 
   return (
-    <Flexbox horizontal align={'center'} className={styles.bar} gap={4}>
-      {/* Left: Mode selector */}
-      <Popover
-        content={modeContent}
-        placement="top"
-        styles={{ content: { padding: 4 } }}
-        trigger="click"
-      >
-        <div className={styles.button}>
-          <Icon icon={ModeIcon} size={14} />
-          <span>{modeLabel}</span>
-          <Icon icon={ChevronDownIcon} size={12} />
-        </div>
-      </Popover>
+    <Flexbox horizontal align={'center'} className={styles.bar} justify={'space-between'}>
+      {/* Left: Runtime env + working directory */}
+      <Flexbox horizontal align={'center'} gap={4}>
+        <Popover
+          content={modeContent}
+          placement="top"
+          styles={{ content: { padding: 4 } }}
+          trigger="click"
+        >
+          <div className={styles.button}>
+            <Icon icon={ModeIcon} size={14} />
+            <span>{modeLabel}</span>
+            <Icon icon={ChevronDownIcon} size={12} />
+          </div>
+        </Popover>
+        {rightContent()}
+      </Flexbox>
 
-      {/* Right: Context based on mode */}
-      {rightContent()}
+      {/* Right: Permission control */}
+      <ApprovalMode />
     </Flexbox>
   );
 });
 
-RuntimeEnv.displayName = 'RuntimeEnv';
+RuntimeConfig.displayName = 'RuntimeConfig';
 
-export default RuntimeEnv;
+export default RuntimeConfig;
