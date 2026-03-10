@@ -11,7 +11,6 @@ import { useSendMenuItems } from './useSendMenuItems';
 const leftActions: ActionKeys[] = [
   'model',
   'search',
-  'localSystem',
   'memory',
   'fileUpload',
   'tools',

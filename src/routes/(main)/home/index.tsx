@@ -1,4 +1,3 @@
-import { isDesktop } from '@lobechat/const';
 import { Flexbox } from '@lobehub/ui';
 import { type FC } from 'react';
 import { useLocation } from 'react-router-dom';
@@ -8,7 +7,6 @@ import NavHeader from '@/features/NavHeader';
 import WideScreenContainer from '@/features/WideScreenContainer';
 import WideScreenButton from '@/features/WideScreenContainer/WideScreenButton';
 
-import WorkingDirectory from '../agent/features/Conversation/Header/WorkingDirectory';
 import HomeContent from './features';
 
 const Home: FC = () => {
@@ -21,7 +19,6 @@ const Home: FC = () => {
       <NavHeader
         right={
           <Flexbox horizontal align="center">
-            {isDesktop && <WorkingDirectory />}
             <WideScreenButton />
           </Flexbox>
         }
