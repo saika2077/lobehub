@@ -22,6 +22,7 @@ import type { ChannelFormValues, TestResult } from './index';
 import { getDiscordFormItems } from './platforms/discord';
 import { getFeishuFormItems } from './platforms/feishu';
 import { getLarkFormItems } from './platforms/lark';
+import { getQQFormItems } from './platforms/qq';
 import { getTelegramFormItems } from './platforms/telegram';
 
 const prefixCls = 'ant';
@@ -76,6 +77,7 @@ const platformFormItemsMap: Record<
 > = {
   discord: getDiscordFormItems,
   feishu: getFeishuFormItems,
+  qq: getQQFormItems,
   lark: getLarkFormItems,
   telegram: getTelegramFormItems,
 };

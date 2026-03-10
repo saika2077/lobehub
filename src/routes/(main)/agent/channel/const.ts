@@ -2,7 +2,7 @@ import { SiDiscord, SiTelegram } from '@icons-pack/react-simple-icons';
 import type { LucideIcon } from 'lucide-react';
 import type { FC } from 'react';
 
-import { LarkIcon } from './icons';
+import { LarkIcon, QQIcon } from './icons';
 
 export interface ChannelProvider {
   /** Lark-style auth: appId + appSecret instead of botToken */
@@ -93,5 +93,20 @@ export const CHANNEL_PROVIDERS: ChannelProvider[] = [
     icon: LarkIcon,
     id: 'lark',
     name: 'Lark',
+  },
+  {
+    authMode: 'app-secret',
+    color: '#12B7F5',
+    description: 'channel.qq.description',
+    docsLink: 'https://bot.q.qq.com/wiki/',
+    fieldTags: {
+      appId: 'App ID',
+      appSecret: 'App Secret',
+      webhook: 'Callback URL',
+    },
+    icon: QQIcon,
+    id: 'qq',
+    name: 'QQ',
+    webhookMode: 'manual',
   },
 ];

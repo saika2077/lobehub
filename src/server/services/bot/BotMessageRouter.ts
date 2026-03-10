@@ -2,6 +2,7 @@ import { createDiscordAdapter } from '@chat-adapter/discord';
 import { createIoRedisState } from '@chat-adapter/state-ioredis';
 import { createTelegramAdapter } from '@chat-adapter/telegram';
 import { createLarkAdapter } from '@lobechat/adapter-lark';
+import { createQQAdapter } from '@lobechat/adapter-qq';
 import { Chat, ConsoleLogger } from 'chat';
 import debug from 'debug';
 
@@ -64,6 +65,14 @@ function createAdapterForPlatform(
         }),
       };
     }
+    case 'qq': {
+      return {
+        qq: createQQAdapter({
+          appId: credentials.appId,
+          clientSecret: credentials.appSecret,
+        }),
+      };
+    }
     default: {
       return null;
     }
@@ -110,6 +119,9 @@ export class BotMessageRouter {
         }
         case 'lark':
         case 'feishu': {
+          return this.handleChatSdkWebhook(req, platform, appId);
+        }
+        case 'qq': {
           return this.handleChatSdkWebhook(req, platform, appId);
         }
         default: {
@@ -351,7 +363,7 @@ export class BotMessageRouter {
       const gateKeeper = await KeyVaultsGateKeeper.initWithEnvKey();
 
       // Load all supported platforms
-      for (const platform of ['discord', 'telegram', 'lark', 'feishu']) {
+      for (const platform of ['discord', 'telegram', 'lark', 'feishu', 'qq']) {
         const providers = await AgentBotProviderModel.findEnabledByPlatform(
           serverDB,
           platform,

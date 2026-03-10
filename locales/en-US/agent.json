@@ -28,6 +28,8 @@
   "channel.platforms": "Platforms",
   "channel.publicKey": "Public Key",
   "channel.publicKeyPlaceholder": "Required for interaction verification",
+  "channel.qq.appIdHint": "Your QQ Bot App ID from QQ Open Platform",
+  "channel.qq.description": "Connect this assistant to QQ for group chats and direct messages.",
   "channel.removeChannel": "Remove Channel",
   "channel.removeFailed": "Failed to remove channel",
   "channel.removed": "Channel removed",
