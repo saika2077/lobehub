@@ -45,21 +45,33 @@ spotlight: {
   path: '/desktop/spotlight',
   keepAlive: true,
   showOnInit: false,
+  skipSplash: true,          // load spotlight route directly, no splash.html
   options: {
     width: 680,
     height: 56,           // input box only
     frame: false,
-    transparent: true,
+    transparent: true,    // NOTE: Browser class strips transparent in constructor,
+                          // must bypass WindowThemeManager for spotlight identifier
     skipTaskbar: true,
-    alwaysOnTop: true,    // level: 'floating'
     resizable: false,
     fullscreenable: false,
     maximizable: false,
     minimizable: false,
     hasShadow: true,
-    backgroundThrottling: true,  // throttle when hidden (differs from main window)
   }
 }
+```
+
+**Post-creation setup** (in SpotlightController or Browser.retrieveOrInitialize):
+
+```typescript
+// alwaysOnTop with 'floating' level (not constructor option)
+spotlightWindow.setAlwaysOnTop(true, 'floating');
+
+// backgroundThrottling must be set via webPreferences, not top-level option.
+// Browser class hardcodes backgroundThrottling: false in webPreferences;
+// spotlight needs override: keep false to ensure < 100ms wake-up latency.
+// (Throttling would delay renderer response when hidden)
 ```
 
 ### Lifecycle
@@ -85,9 +97,13 @@ hide() → window hidden (not destroyed) → webContents preserved → await nex
 
 ### whenReady() Mechanism
 
+- Spotlight window skips the splash placeholder (no `splash.html`); loads spotlight route directly
 - Renderer sends `spotlight:ready` IPC event after initial load completes
-- Main process holds a `readyPromise`; hotkey handler awaits it before showing
+- Main process registers `ipcMain.once('spotlight:ready')` during window creation, resolving a stored `readyPromise`
+- Hotkey handler awaits `readyPromise` before showing (normally instant after app startup)
 - Timeout fallback (> 3s): show anyway, user may see brief loading state
+- On renderer crash + recreate: `readyPromise` must be reset to a new pending promise; the recreated renderer will re-emit `spotlight:ready`
+- After `show()`, main process sends `spotlight:focus` IPC to renderer to ensure DOM input focus (Electron's `show()` + `focus()` does not guarantee DOM focus lands on the input element)
 
 ## Renderer Design
 
@@ -120,6 +136,20 @@ renderer: {
 }
 ```
 
+**RendererUrlManager modification (production route resolution):**
+
+The existing `resolveRendererFilePath` always falls back to the main `SPA_ENTRY_HTML` (`index.html`). For the spotlight window, paths starting with `/desktop/spotlight` must resolve to `spotlight.html` instead:
+
+```typescript
+// In RendererUrlManager.resolveRendererFilePath:
+if (pathname.startsWith('/desktop/spotlight')) {
+  return resolve(rendererDir, 'spotlight.html');
+}
+// existing fallback to index.html
+```
+
+Without this, the spotlight BrowserWindow would load the main app entry in production.
+
 ### Minimal Provider Chain (entry.spotlight.tsx)
 
 ```typescript
@@ -139,10 +169,12 @@ renderer: {
 **Excluded providers** (vs main window SPAGlobalProvider):
 
 - StoreInitialization — no full store init needed
-- AuthProvider — auth state obtained via IPC from main window
+- AuthProvider — not needed; all BrowserWindow instances share the default Electron session (no `partition` set), so cookies and session storage are shared. TRPC client in spotlight inherits the same auth cookies automatically.
 - ServerConfigStoreProvider — not required
 - LazyMotion / DragUploadProvider / FaviconProvider — irrelevant
 - ModalHost / ToastHost / ContextMenuHost — spotlight has no modals
+
+**Auth assumption:** Spotlight renderer shares the default Electron session with main window. Auth cookies set by the main window are available to spotlight's TRPC/fetch calls without additional IPC.
 
 ### Progressive Rendering
 
@@ -181,15 +213,24 @@ Main Window Renderer          Electron Main Process          Spotlight Renderer
 
 **IPC events:**
 
+**Prerequisite:** The `store:invalidate` event must be registered in `@lobechat/electron-client-ipc` package's `MainBroadcastEventKey` type definitions. The current `broadcastToAllWindows` method has no `excludeSender` parameter; it must be extended to accept an optional sender `webContents` to exclude.
+
 ```typescript
-// After writing to DB, sender broadcasts
+// After writing to DB, sender broadcasts via preload bridge
 ipcRenderer.send('store:invalidate', {
   keys: ['chat/messages', 'chat/topics'],
   source: 'spotlight', // or 'main'
 });
 
-// Main process relays to all other windows
-browserManager.broadcastToAllWindows('store:invalidate', payload, excludeSender);
+// Main process relays to all other windows (excludeSender added to API)
+// In SpotlightController or a new StoreInvalidationController:
+ipcMain.on('store:invalidate', (event, payload) => {
+  browserManager.broadcastToOtherWindows(
+    'store:invalidate',
+    payload,
+    event.sender, // exclude the sender's webContents
+  );
+});
 
 // Receiver triggers SWR revalidation
 ipcRenderer.on('store:invalidate', (_, { keys }) => {
@@ -235,21 +276,28 @@ spotlightWindow.show();
 | Command/search results | 680 x 320 | Expand downward (top anchored)    |
 | Chat mode              | 680 x 480 | Expand downward, draggable height |
 
-Size changes via renderer IPC → main process `setSize()` with animation transition. Top-left position anchored (expands downward only).
+Size changes via renderer IPC → main process `setBounds()`. On macOS, `setBounds({ ...bounds }, { animate: true })` provides native animation; on Windows, animation is renderer-driven (CSS transition on inner container with instant `setSize()`). Top-left position anchored (expands downward only).
 
 ### Hide Logic
 
-| Trigger                      | Behavior                                      |
-| ---------------------------- | --------------------------------------------- |
-| `blur` event (click outside) | Hide in both modes                            |
-| `Esc` key                    | Input has content → clear; input empty → hide |
-| Re-press hotkey              | Toggle: visible → hide, hidden → show         |
-| Command executed             | Await renderer ack → hide                     |
+All Esc/blur handling is **renderer-side** (main process cannot inspect DOM state). Renderer sends `spotlight:hide` IPC to main process when hide is needed.
+
+| Trigger                      | Behavior                                      | Handler       |
+| ---------------------------- | --------------------------------------------- | ------------- |
+| `blur` event (click outside) | Hide in both modes                            | Main          |
+| `Esc` key                    | Input has content → clear; input empty → hide | Renderer      |
+| Re-press hotkey              | Toggle: visible → hide, hidden → show         | Main          |
+| Command executed             | Await renderer ack → hide                     | Renderer→Main |
 
 ### Post-hide Reset
 
 - Command mode: clear input, shrink window to initial size
-- Chat mode: retain current topic context; next invocation resumes (configurable to reset)
+- Chat mode: retain current topic context (webContents preserved, Zustand store survives hide); next invocation resumes (configurable to reset)
+
+### Multi-display Behavior
+
+- Each show always positions at current cursor location, regardless of previous position
+- If user is in chat mode and re-invokes hotkey after hide, window appears at new cursor position
 
 ### Input Smart Routing
 
@@ -259,6 +307,16 @@ User input → check prefix:
   @ prefix   → Search mode (search topics / agents / files)
   plain text → Chat mode (send to current or new topic)
 ```
+
+**v1 scope:**
+
+- Commands (`>`): new chat, switch agent, toggle dark mode, open settings
+- Search (`@`): topics, agents
+- Chat: send to current topic or create new topic
+
+### Preload Script
+
+The existing preload script (`src/preload/index.ts`) runs `setupRouteInterceptors()` which is designed for the main window's client-side routing. The spotlight window uses a separate MPA entry and simpler router. The spotlight window should use the same preload script (to preserve `window.electronAPI` for IPC), but route interception is harmless since spotlight routes are not in the interception config (`src/common/routes.ts`). No separate preload needed.
 
 ## Error Handling
 
