@@ -24,6 +24,10 @@ function electronDesktopHtmlPlugin(): PluginOption {
         if (req.url === '/' || req.url === '/index.html') {
           req.url = '/apps/desktop/index.html';
         }
+        // Spotlight routes serve spotlight.html
+        if (req.url?.startsWith('/desktop/spotlight')) {
+          req.url = '/apps/desktop/spotlight.html';
+        }
         next();
       });
     },
@@ -98,7 +102,10 @@ export default defineConfig({
     build: {
       outDir: resolve(__dirname, 'dist/renderer'),
       rollupOptions: {
-        input: resolve(__dirname, 'index.html'),
+        input: {
+          main: resolve(__dirname, 'index.html'),
+          spotlight: resolve(__dirname, 'spotlight.html'),
+        },
         output: sharedRollupOutput,
       },
     },
