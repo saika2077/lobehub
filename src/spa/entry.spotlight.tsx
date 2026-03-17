@@ -31,7 +31,7 @@ SpotlightProvider.displayName = 'SpotlightProvider';
 const App = () => {
   useEffect(() => {
     // Signal to main process that renderer is ready
-    window.electron?.ipcRenderer.send('spotlight:ready');
+    window.electronAPI?.invoke?.('spotlight:ready');
   }, []);
 
   return (

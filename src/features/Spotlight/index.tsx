@@ -8,7 +8,7 @@ const SpotlightWindow = memo(() => {
   const [inputValue, setInputValue] = useState('');
 
   const handleHide = useCallback(() => {
-    window.electron?.ipcRenderer.send('spotlight:hide');
+    window.electronAPI?.invoke?.('spotlight:hide');
   }, []);
 
   const handleSubmit = useCallback(

@@ -8,20 +8,20 @@ export default class SpotlightCtr extends ControllerModule {
   static override readonly groupName = 'spotlight';
 
   afterAppReady() {
-    // Listen for renderer ready signal
-    ipcMain.on('spotlight:ready', () => {
+    // Listen for renderer ready signal (invoke → handle)
+    ipcMain.handle('spotlight:ready', () => {
       const spotlight = this.app.browserManager.browsers.get(BrowsersIdentifiers.spotlight);
       spotlight?.markReady();
     });
 
     // Listen for renderer hide request
-    ipcMain.on('spotlight:hide', () => {
+    ipcMain.handle('spotlight:hide', () => {
       const spotlight = this.app.browserManager.browsers.get(BrowsersIdentifiers.spotlight);
       spotlight?.hide();
     });
 
     // Listen for renderer resize request
-    ipcMain.on('spotlight:resize', (_event, params: { height: number; width: number }) => {
+    ipcMain.handle('spotlight:resize', (_event, params: { height: number; width: number }) => {
       const spotlight = this.app.browserManager.browsers.get(BrowsersIdentifiers.spotlight);
       if (!spotlight) return;
 
