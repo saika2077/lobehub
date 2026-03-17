@@ -30,6 +30,7 @@ export interface BrowserWindowOpts extends BrowserWindowConstructorOptions {
   parentIdentifier?: string;
   path: string;
   showOnInit?: boolean;
+  skipSplash?: boolean;
   title?: string;
   width?: number;
 }
@@ -42,6 +43,8 @@ export default class Browser {
   private readonly themeManager: WindowThemeManager;
 
   private _browserWindow?: BrowserWindow;
+  private _readyResolve?: () => void;
+  private _readyPromise: Promise<void>;
 
   readonly identifier: string;
   readonly options: BrowserWindowOpts;
@@ -66,6 +69,10 @@ export default class Browser {
     this.app = application;
     this.identifier = options.identifier;
     this.options = options;
+
+    this._readyPromise = new Promise<void>((resolve) => {
+      this._readyResolve = resolve;
+    });
 
     // Initialize managers
     this.stateManager = new WindowStateManager(application, {
@@ -127,6 +134,14 @@ export default class Browser {
     logger.info(`Creating new BrowserWindow instance: ${this.identifier}`);
     logger.debug(`[${this.identifier}] Resolved window state: ${JSON.stringify(resolvedState)}`);
 
+    const platformConfig = this.themeManager.getPlatformConfig();
+
+    // Spotlight window: force transparent, no vibrancy (clean floating panel)
+    const spotlightOverrides =
+      this.identifier === 'spotlight'
+        ? { trafficLightPosition: undefined, transparent: true, vibrancy: undefined }
+        : {};
+
     return new BrowserWindow({
       ...rest,
       autoHideMenuBar: true,
@@ -146,8 +161,8 @@ export default class Browser {
       width: resolvedState.width,
       x: resolvedState.x,
       y: resolvedState.y,
-      // Platform visual config is the SOLE source of vibrancy / transparency / titleBarOverlay.
-      ...this.themeManager.getPlatformConfig(),
+      ...platformConfig,
+      ...spotlightOverrides,
     });
   }
 
@@ -156,6 +171,11 @@ export default class Browser {
 
     // Setup theme management (includes liquid glass lifecycle on macOS Tahoe)
     this.themeManager.attach(browserWindow);
+
+    // Spotlight: float above all windows
+    if (this.identifier === 'spotlight') {
+      browserWindow.setAlwaysOnTop(true, 'floating');
+    }
 
     // Setup network interceptors
     this.setupCORSBypass(browserWindow);
@@ -178,15 +198,25 @@ export default class Browser {
   }
 
   private initiateContentLoading(): void {
-    logger.debug(`[${this.identifier}] Initiating placeholder and URL loading sequence.`);
-    this.loadPlaceholder().then(() => {
+    logger.debug(`[${this.identifier}] Initiating content loading sequence.`);
+
+    if (this.options.skipSplash) {
       this.loadUrl(this.options.path).catch((e) => {
         logger.error(
           `[${this.identifier}] Initial loadUrl error for path '${this.options.path}':`,
           e,
         );
       });
-    });
+    } else {
+      this.loadPlaceholder().then(() => {
+        this.loadUrl(this.options.path).catch((e) => {
+          logger.error(
+            `[${this.identifier}] Initial loadUrl error for path '${this.options.path}':`,
+            e,
+          );
+        });
+      });
+    }
   }
 
   // ==================== Event Listeners ====================
@@ -324,6 +354,53 @@ export default class Browser {
       this._browserWindow?.show();
       this._browserWindow?.focus();
     }
+  }
+
+  /**
+   * Wait until renderer signals ready via IPC.
+   * Resolves immediately if already ready. Times out after 3s.
+   */
+  async whenReady(timeoutMs = 3000): Promise<void> {
+    await Promise.race([
+      this._readyPromise,
+      new Promise<void>((resolve) => setTimeout(resolve, timeoutMs)),
+    ]);
+  }
+
+  /**
+   * Mark this window's renderer as ready. Called from IPC handler.
+   */
+  markReady(): void {
+    this._readyResolve?.();
+  }
+
+  /**
+   * Reset ready state (e.g. after crash + recreate).
+   */
+  resetReady(): void {
+    this._readyPromise = new Promise<void>((resolve) => {
+      this._readyResolve = resolve;
+    });
+  }
+
+  /**
+   * Show window at a specific screen coordinate.
+   * Applies boundary correction to keep within display work area.
+   */
+  showAt(point: { x: number; y: number }): void {
+    const display = screen.getDisplayNearestPoint(point);
+    const { width, height } = this.browserWindow.getBounds();
+
+    let x = Math.round(point.x - width / 2);
+    let y = point.y + 8;
+
+    const bounds = display.workArea;
+    x = Math.max(bounds.x, Math.min(x, bounds.x + bounds.width - width));
+    y = Math.max(bounds.y, Math.min(y, bounds.y + bounds.height - height));
+
+    this.browserWindow.setPosition(x, y);
+    this.browserWindow.show();
+    this.browserWindow.focus();
   }
 
   moveToCenter(): void {
