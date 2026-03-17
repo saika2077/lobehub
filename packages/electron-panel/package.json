@@ -1,0 +1,28 @@
+{
+  "name": "@lobechat/electron-panel",
+  "version": "1.0.0",
+  "private": true,
+  "description": "NSPanel-grade native window behavior for Electron BrowserWindow",
+  "exports": {
+    ".": {
+      "types": "./js/index.d.ts",
+      "require": "./js/index.cjs"
+    }
+  },
+  "main": "./js/index.cjs",
+  "types": "./js/index.d.ts",
+  "scripts": {
+    "build:native": "prebuildify --napi --strip --tag-armv --arch=arm64 && prebuildify --napi --strip --arch=x64",
+    "build:native:current": "node-gyp rebuild && mkdir -p prebuilds/darwin-$(uname -m) && cp build/Release/electron_panel.node prebuilds/darwin-$(uname -m)/node.napi.node"
+  },
+  "dependencies": {
+    "node-addon-api": "^8.4.0"
+  },
+  "optionalDependencies": {
+    "node-gyp-build": "^4"
+  },
+  "os": [
+    "darwin"
+  ],
+  "gypfile": false
+}
