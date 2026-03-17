@@ -52,6 +52,7 @@
     "@electron-toolkit/utils": "^4.0.0",
     "@lobechat/desktop-bridge": "workspace:*",
     "@lobechat/electron-client-ipc": "workspace:*",
+    "@lobechat/electron-panel": "workspace:*",
     "@lobechat/electron-server-ipc": "workspace:*",
     "@lobechat/file-loaders": "workspace:*",
     "@lobechat/local-file-shell": "workspace:*",
