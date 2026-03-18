@@ -224,16 +224,58 @@ export class TaskModel {
 
   // Check if all dependencies of a task are completed
   async areAllDependenciesCompleted(taskId: string): Promise<boolean> {
-    const result = await this.db.execute(sql`
-      SELECT COUNT(*) as pending_count
-      FROM task_dependencies d
-      JOIN tasks t ON d.depends_on_id = t.id
-      WHERE d.task_id = ${taskId}
-        AND d.type = 'blocks'
-        AND t.status != 'completed'
-    `);
+    const result = await this.db
+      .select({ count: sql<number>`count(*)` })
+      .from(taskDependencies)
+      .innerJoin(tasks, eq(taskDependencies.dependsOnId, tasks.id))
+      .where(
+        and(
+          eq(taskDependencies.taskId, taskId),
+          eq(taskDependencies.type, 'blocks'),
+          sql`${tasks.status} != 'completed'`,
+        ),
+      );
 
-    return Number((result.rows[0] as any).pending_count) === 0;
+    return Number(result[0].count) === 0;
+  }
+
+  // Find tasks that are now unblocked after a dependency completes
+  async getUnlockedTasks(completedTaskId: string): Promise<TaskItem[]> {
+    // Find all tasks that depend on the completed task
+    const dependents = await this.getDependents(completedTaskId);
+    const unlocked: TaskItem[] = [];
+
+    for (const dep of dependents) {
+      if (dep.type !== 'blocks') continue;
+
+      // Check if ALL dependencies of this task are now completed
+      const allDone = await this.areAllDependenciesCompleted(dep.taskId);
+      if (!allDone) continue;
+
+      // Get the task itself — only unlock if it's in backlog
+      const task = await this.findById(dep.taskId);
+      if (task && task.status === 'backlog') {
+        unlocked.push(task);
+      }
+    }
+
+    return unlocked;
+  }
+
+  // Check if all subtasks of a parent task are completed
+  async areAllSubtasksCompleted(parentTaskId: string): Promise<boolean> {
+    const result = await this.db
+      .select({ count: sql<number>`count(*)` })
+      .from(tasks)
+      .where(
+        and(
+          eq(tasks.parentTaskId, parentTaskId),
+          sql`${tasks.status} != 'completed'`,
+          eq(tasks.createdByUserId, this.userId),
+        ),
+      );
+
+    return Number(result[0].count) === 0;
   }
 
   // ========== Documents (MVP Workspace) ==========

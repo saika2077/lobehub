@@ -338,6 +338,57 @@ describe('TaskModel', () => {
       const dependents = await model.getDependents(taskA.id);
       expect(dependents).toHaveLength(2);
     });
+
+    it('should find unlocked tasks after dependency completes', async () => {
+      const model = new TaskModel(serverDB, userId);
+      const taskA = await model.create({ instruction: 'Task A' });
+      const taskB = await model.create({ instruction: 'Task B' });
+      const taskC = await model.create({ instruction: 'Task C' });
+
+      // C blocks on A and B
+      await model.addDependency(taskC.id, taskA.id);
+      await model.addDependency(taskC.id, taskB.id);
+
+      // Complete A — C still blocked by B
+      await model.updateStatus(taskA.id, 'completed');
+      let unlocked = await model.getUnlockedTasks(taskA.id);
+      expect(unlocked).toHaveLength(0);
+
+      // Complete B — C now unlocked
+      await model.updateStatus(taskB.id, 'completed');
+      unlocked = await model.getUnlockedTasks(taskB.id);
+      expect(unlocked).toHaveLength(1);
+      expect(unlocked[0].id).toBe(taskC.id);
+    });
+
+    it('should not unlock tasks that are not in backlog', async () => {
+      const model = new TaskModel(serverDB, userId);
+      const taskA = await model.create({ instruction: 'Task A' });
+      const taskB = await model.create({ instruction: 'Task B' });
+
+      await model.addDependency(taskB.id, taskA.id);
+      // Move B to running manually (not backlog)
+      await model.updateStatus(taskB.id, 'running', { startedAt: new Date() });
+
+      await model.updateStatus(taskA.id, 'completed');
+      const unlocked = await model.getUnlockedTasks(taskA.id);
+      expect(unlocked).toHaveLength(0); // B is already running, not unlocked
+    });
+
+    it('should check all subtasks completed', async () => {
+      const model = new TaskModel(serverDB, userId);
+      const parent = await model.create({ instruction: 'Parent' });
+      const child1 = await model.create({ instruction: 'Child 1', parentTaskId: parent.id });
+      const child2 = await model.create({ instruction: 'Child 2', parentTaskId: parent.id });
+
+      expect(await model.areAllSubtasksCompleted(parent.id)).toBe(false);
+
+      await model.updateStatus(child1.id, 'completed');
+      expect(await model.areAllSubtasksCompleted(parent.id)).toBe(false);
+
+      await model.updateStatus(child2.id, 'completed');
+      expect(await model.areAllSubtasksCompleted(parent.id)).toBe(true);
+    });
   });
 
   describe('documents', () => {

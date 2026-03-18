@@ -264,8 +264,14 @@ export function registerTaskCommand(program: Command) {
     .description('Mark a task as completed')
     .action(async (id: string) => {
       const client = await getTrpcClient();
-      const result = await client.task.updateStatus.mutate({ id, status: 'completed' });
+      const result = (await client.task.updateStatus.mutate({ id, status: 'completed' })) as any;
       log.info(`Task ${pc.bold(result.data.identifier)} completed.`);
+      if (result.unlocked?.length > 0) {
+        log.info(`Unlocked: ${result.unlocked.map((id: string) => pc.bold(id)).join(', ')}`);
+      }
+      if (result.allSubtasksDone) {
+        log.info(`All subtasks of parent task completed.`);
+      }
     });
 
   // ── cancel ──────────────────────────────────────────────

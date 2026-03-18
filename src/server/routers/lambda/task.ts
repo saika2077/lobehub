@@ -321,7 +321,32 @@ export const taskRouter = router({
 
         const task = await model.updateStatus(resolved.id, status, extra);
         if (!task) throw new TRPCError({ code: 'NOT_FOUND', message: 'Task not found' });
-        return { data: task, message: `Task ${status}`, success: true };
+
+        // On completion: check dependency unlocking + parent notification
+        const unlocked: string[] = [];
+        let allSubtasksDone = false;
+
+        if (status === 'completed') {
+          // 1. Unlock tasks blocked by this one
+          const unlockedTasks = await model.getUnlockedTasks(task.id);
+          for (const ut of unlockedTasks) {
+            await model.updateStatus(ut.id, 'running', { startedAt: new Date() });
+            unlocked.push(ut.identifier);
+          }
+
+          // 2. Check if all sibling subtasks are done (notify parent)
+          if (task.parentTaskId) {
+            allSubtasksDone = await model.areAllSubtasksCompleted(task.parentTaskId);
+          }
+        }
+
+        return {
+          data: task,
+          message: `Task ${status}`,
+          success: true,
+          ...(unlocked.length > 0 && { unlocked }),
+          ...(allSubtasksDone && { allSubtasksDone: true, parentTaskId: task.parentTaskId }),
+        };
       } catch (error) {
         if (error instanceof TRPCError) throw error;
         console.error('[task:updateStatus]', error);
