@@ -80,7 +80,7 @@ export class MCPService {
     return { content, state, success: true };
   }
 
-  private sanitizeForLogging = <T extends Record<string, any>>(obj: T): Omit<T, 'env'> => {
+  private sanitizeForLogging = <T extends Record<string, unknown>>(obj: T): Omit<T, 'env'> => {
     if (!obj) return obj;
 
     const { env: _, ...rest } = obj;
@@ -330,7 +330,7 @@ export class MCPService {
   // Custom serialization function to ensure consistent keys
   private serializeParams(params: MCPClientParams): string {
     const sortedKeys = Object.keys(params).sort();
-    const sortedParams: Record<string, any> = {};
+    const sortedParams: Record<string, unknown> = {};
 
     for (const key of sortedKeys) {
       const value = (params as any)[key];

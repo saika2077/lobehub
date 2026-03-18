@@ -7,7 +7,10 @@
 import { type PromptBuilder } from '@saintno/comfyui-sdk';
 import debug from 'debug';
 
-import { getWorkflowBuilder } from '@/server/services/comfyui/config/workflowRegistry';
+import {
+  type ComfyUIWorkflowParams,
+  getWorkflowBuilder,
+} from '@/server/services/comfyui/config/workflowRegistry';
 import { type ComfyUIClientService } from '@/server/services/comfyui/core/comfyUIClientService';
 import { type ModelResolverService } from '@/server/services/comfyui/core/modelResolverService';
 import { WorkflowError } from '@/server/services/comfyui/errors';
@@ -43,7 +46,7 @@ export class WorkflowBuilderService {
     modelId: string,
     detectionResult: WorkflowDetectionResult,
     modelFileName: string,
-    params: Record<string, any>,
+    params: ComfyUIWorkflowParams,
   ): Promise<PromptBuilder<any, any, any>> {
     log('Building workflow for:', modelId, 'architecture:', detectionResult.architecture);
 

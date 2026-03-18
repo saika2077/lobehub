@@ -13,6 +13,7 @@ import {
   DEFAULT_NEGATIVE_PROMPT,
   WORKFLOW_DEFAULTS,
 } from '@/server/services/comfyui/config/constants';
+import { type ComfyUIWorkflowParams } from '@/server/services/comfyui/config/workflowRegistry';
 import { type WorkflowContext } from '@/server/services/comfyui/core/workflowBuilderService';
 import { WorkflowError } from '@/server/services/comfyui/errors';
 import { getWorkflowFilenamePrefix } from '@/server/services/comfyui/utils/workflowUtils';
@@ -66,7 +67,7 @@ async function detectAvailableEncoder(context: WorkflowContext): Promise<{
  */
 export async function buildSD35Workflow(
   modelFileName: string,
-  params: Record<string, any>,
+  params: ComfyUIWorkflowParams,
   context: WorkflowContext,
 ): Promise<PromptBuilder<any, any, any>> {
   // Detect available encoders using service layer

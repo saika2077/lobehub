@@ -19,6 +19,7 @@ import {
   WORKFLOW_DEFAULTS,
 } from '@/server/services/comfyui/config/constants';
 import { type ModelConfig } from '@/server/services/comfyui/config/modelRegistry';
+import { type ComfyUIWorkflowParams } from '@/server/services/comfyui/config/workflowRegistry';
 import { type WorkflowContext } from '@/server/services/comfyui/core/workflowBuilderService';
 import { getModelConfig } from '@/server/services/comfyui/utils/staticModelLookup';
 import { getWorkflowFilenamePrefix } from '@/server/services/comfyui/utils/workflowUtils';
@@ -26,7 +27,7 @@ import { getWorkflowFilenamePrefix } from '@/server/services/comfyui/utils/workf
 /**
  * Parameters for SimpleSD workflow
  */
-export interface SimpleSDParams extends Record<string, any> {
+export interface SimpleSDParams extends ComfyUIWorkflowParams {
   cfg?: number; // Guidance scale for generation
   denoise?: number; // Denoising strength for i2i mode (0.0 - 1.0, default: 0.75)
   height?: number; // Image height

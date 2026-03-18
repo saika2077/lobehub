@@ -210,9 +210,9 @@ export class MessageService {
     id: string,
     value: {
       content?: string;
-      metadata?: Record<string, any>;
+      metadata?: Record<string, unknown>;
       pluginError?: any;
-      pluginState?: Record<string, any>;
+      pluginState?: Record<string, unknown>;
     },
     options?: QueryOptions,
   ): Promise<{ messages?: UIChatMessage[]; success: boolean }> {

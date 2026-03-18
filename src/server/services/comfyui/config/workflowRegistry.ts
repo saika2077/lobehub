@@ -8,10 +8,24 @@ import { buildFluxSchnellWorkflow } from '@/server/services/comfyui/workflows/fl
 import { buildSD35Workflow } from '@/server/services/comfyui/workflows/sd35';
 import { buildSimpleSDWorkflow } from '@/server/services/comfyui/workflows/simple-sd';
 
+export interface ComfyUIWorkflowParams {
+  cfg?: number;
+  height?: number;
+  imageUrl?: string;
+  imageUrls?: string[];
+  prompt?: string;
+  samplerName?: string;
+  scheduler?: string;
+  seed?: number;
+  steps?: number;
+  strength?: number;
+  width?: number;
+}
+
 // Workflow builder type
 type WorkflowBuilder = (
   modelFileName: string,
-  params: Record<string, any>,
+  params: ComfyUIWorkflowParams,
   context: WorkflowContext,
 ) => Promise<PromptBuilder<any, any, any>>;
 

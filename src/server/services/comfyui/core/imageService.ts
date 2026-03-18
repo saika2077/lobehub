@@ -8,6 +8,7 @@ import { type CreateImagePayload, type CreateImageResponse } from '@lobechat/mod
 import { type PromptBuilder } from '@saintno/comfyui-sdk';
 import debug from 'debug';
 
+import { type ComfyUIWorkflowParams } from '@/server/services/comfyui/config/workflowRegistry';
 import { type ComfyUIClientService } from '@/server/services/comfyui/core/comfyUIClientService';
 import { ErrorHandlerService } from '@/server/services/comfyui/core/errorHandlerService';
 import { type ModelResolverService } from '@/server/services/comfyui/core/modelResolverService';
@@ -94,7 +95,7 @@ export class ImageService {
    * Also saves original dimensions to params for frontend rendering
    */
   private async processImageFetch(
-    params: Record<string, any>,
+    params: ComfyUIWorkflowParams,
     architecture?: string,
   ): Promise<void> {
     const imageUrl = params.imageUrl || params.imageUrls?.[0];
@@ -242,7 +243,7 @@ export class ImageService {
   private async buildWorkflow(
     model: string,
     modelFileName: string,
-    params: Record<string, any>,
+    params: ComfyUIWorkflowParams,
   ): Promise<PromptBuilder<any, any, any>> {
     log('Building workflow for model:', model);
 

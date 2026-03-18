@@ -24,7 +24,7 @@ const log = debug('lobe-image:comfyui:client');
  */
 export interface WorkflowResult {
   // Raw output data from workflow execution, keyed by node ID
-  _raw?: Record<string, any>;
+  _raw?: Record<string, unknown>;
   images?: {
     images?: Array<{
       data: string;

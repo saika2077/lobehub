@@ -2,6 +2,7 @@ import { generateUniqueSeeds } from '@lobechat/utils';
 import { PromptBuilder } from '@saintno/comfyui-sdk';
 
 import { WORKFLOW_DEFAULTS } from '@/server/services/comfyui/config/constants';
+import { type ComfyUIWorkflowParams } from '@/server/services/comfyui/config/workflowRegistry';
 import { type WorkflowContext } from '@/server/services/comfyui/core/workflowBuilderService';
 import { splitPromptForDualCLIP } from '@/server/services/comfyui/utils/promptSplitter';
 import { selectOptimalWeightDtype } from '@/server/services/comfyui/utils/weightDType';
@@ -19,7 +20,7 @@ import { getWorkflowFilenamePrefix } from '@/server/services/comfyui/utils/workf
  */
 export async function buildFluxSchnellWorkflow(
   modelFileName: string,
-  params: Record<string, any>,
+  params: ComfyUIWorkflowParams,
   context: WorkflowContext,
 ): Promise<PromptBuilder<any, any, any>> {
   // Get required components - will throw if not available (workflow cannot run without them)

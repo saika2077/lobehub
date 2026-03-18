@@ -9,7 +9,7 @@ import { type ToolExecutionResult } from '@/server/services/toolExecution/types'
 const log = debug('lobe-server:klavis-service');
 
 export interface KlavisToolExecuteParams {
-  args: Record<string, any>;
+  args: Record<string, unknown>;
   /** Tool identifier (same as Klavis server identifier, e.g., 'google-calendar') */
   identifier: string;
   toolName: string;
