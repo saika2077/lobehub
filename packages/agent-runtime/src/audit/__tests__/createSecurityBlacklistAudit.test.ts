@@ -39,7 +39,7 @@ describe('createSecurityBlacklistAudit', () => {
       const audit = createSecurityBlacklistAudit();
       // No securityBlacklist in metadata → uses default
       expect(audit({ command: 'rm -rf /' }, {})).toBe(true);
-      expect(audit({ command: 'rm -rf /' }, { otherField: 'value' })).toBe(true);
+      expect(audit({ command: 'rm -rf /' }, { otherField: 'value' } as any)).toBe(true);
     });
 
     it('should fall back to DEFAULT_SECURITY_BLACKLIST when metadata is undefined', () => {

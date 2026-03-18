@@ -33,6 +33,7 @@ export type {
   ToolsGenerationContext,
   ToolsGenerationResult,
   ToolSource,
+  UniformTool,
 } from './types';
 
 // Utility functions

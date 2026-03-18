@@ -39,7 +39,7 @@ const mapToResourceItem = (item: FileListItem): ResourceItem => {
     id: item.id,
 
     // Metadata
-    metadata: item.metadata || undefined,
+    metadata: (item.metadata || undefined) as ResourceItem['metadata'],
 
     name: item.name,
 

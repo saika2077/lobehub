@@ -553,9 +553,7 @@ class ChatService {
       provider: params.provider,
       runtimeProvider: params.runtimeProvider,
     });
-    const data = params.payload as ChatStreamPayload;
-
-    return agentRuntime.chat(data, { signal: params.signal });
+    return agentRuntime.chat(params.payload as any, { signal: params.signal });
   };
 }
 

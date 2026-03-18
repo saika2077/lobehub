@@ -247,7 +247,7 @@ class DiscoverService {
 
     await this.safeInjectMPToken();
 
-    lambdaClient.market.reportCall.mutate(cleanObject(reportData)).catch((reportError) => {
+    lambdaClient.market.reportCall.mutate(cleanObject(reportData) as any).catch((reportError) => {
       console.warn('Failed to report call:', reportError);
     });
   };

@@ -8,7 +8,7 @@ class AiChatService {
     params: SendMessageServerParams,
     abortController: AbortController,
   ) => {
-    return lambdaClient.aiChat.sendMessageInServer.mutate(cleanObject(params), {
+    return lambdaClient.aiChat.sendMessageInServer.mutate(cleanObject(params) as any, {
       context: { showNotification: false },
       signal: abortController?.signal,
     });

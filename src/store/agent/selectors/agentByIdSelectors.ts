@@ -102,11 +102,11 @@ const getAgentBuilderContextById =
 
     return {
       config: {
-        chatConfig: config?.chatConfig,
+        chatConfig: config?.chatConfig as unknown as Record<string, unknown> | undefined,
         model: config?.model,
         openingMessage: config?.openingMessage,
         openingQuestions: config?.openingQuestions,
-        params: config?.params,
+        params: config?.params as unknown as Record<string, unknown> | undefined,
         plugins: config?.plugins,
         provider: config?.provider,
         systemRole: config?.systemRole,

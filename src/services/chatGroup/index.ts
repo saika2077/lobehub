@@ -93,7 +93,7 @@ class ChatGroupService {
   };
 
   getGroupDetail = (id: string): Promise<AgentGroupDetail | null> => {
-    return lambdaClient.group.getGroupDetail.query({ id });
+    return lambdaClient.group.getGroupDetail.query({ id }) as Promise<AgentGroupDetail | null>;
   };
 
   getGroups = (): Promise<ChatGroupItem[]> => {

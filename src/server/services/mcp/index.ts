@@ -80,10 +80,10 @@ export class MCPService {
     return { content, state, success: true };
   }
 
-  private sanitizeForLogging = <T extends Record<string, unknown>>(obj: T): Omit<T, 'env'> => {
+  private sanitizeForLogging = <T extends object>(obj: T): Omit<T, 'env'> => {
     if (!obj) return obj;
 
-    const { env: _, ...rest } = obj;
+    const { env: _, ...rest } = obj as Record<string, unknown>;
     return rest as Omit<T, 'env'>;
   };
 
