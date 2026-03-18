@@ -280,6 +280,68 @@ export const taskRouter = router({
       }
     }),
 
+  getCheckpoint: taskProcedure.input(idInput).query(async ({ input, ctx }) => {
+    try {
+      const model = new TaskModel(ctx.serverDB, ctx.userId);
+      const task = await resolveOrThrow(model, input.id);
+      const checkpoint = model.getCheckpointConfig(task);
+      return { data: checkpoint, success: true };
+    } catch (error) {
+      if (error instanceof TRPCError) throw error;
+      console.error('[task:getCheckpoint]', error);
+      throw new TRPCError({
+        cause: error,
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Failed to get checkpoint',
+      });
+    }
+  }),
+
+  updateCheckpoint: taskProcedure
+    .input(
+      idInput.merge(
+        z.object({
+          checkpoint: z.object({
+            onAgentRequest: z.boolean().optional(),
+            tasks: z
+              .object({
+                afterIds: z.array(z.string()).optional(),
+                beforeIds: z.array(z.string()).optional(),
+              })
+              .optional(),
+            topic: z
+              .object({
+                after: z.boolean().optional(),
+                before: z.boolean().optional(),
+              })
+              .optional(),
+          }),
+        }),
+      ),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const { id, checkpoint } = input;
+      try {
+        const model = new TaskModel(ctx.serverDB, ctx.userId);
+        const resolved = await resolveOrThrow(model, id);
+        const task = await model.updateCheckpointConfig(resolved.id, checkpoint);
+        if (!task) throw new TRPCError({ code: 'NOT_FOUND', message: 'Task not found' });
+        return {
+          data: model.getCheckpointConfig(task),
+          message: 'Checkpoint updated',
+          success: true,
+        };
+      } catch (error) {
+        if (error instanceof TRPCError) throw error;
+        console.error('[task:updateCheckpoint]', error);
+        throw new TRPCError({
+          cause: error,
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to update checkpoint',
+        });
+      }
+    }),
+
   update: taskProcedure.input(idInput.merge(updateSchema)).mutation(async ({ input, ctx }) => {
     const { id, ...data } = input;
     try {
@@ -322,21 +384,45 @@ export const taskRouter = router({
         const task = await model.updateStatus(resolved.id, status, extra);
         if (!task) throw new TRPCError({ code: 'NOT_FOUND', message: 'Task not found' });
 
-        // On completion: check dependency unlocking + parent notification
+        // On completion: check dependency unlocking + parent notification + checkpoints
         const unlocked: string[] = [];
+        const paused: string[] = [];
         let allSubtasksDone = false;
+        let checkpointTriggered = false;
 
         if (status === 'completed') {
-          // 1. Unlock tasks blocked by this one
-          const unlockedTasks = await model.getUnlockedTasks(task.id);
-          for (const ut of unlockedTasks) {
-            await model.updateStatus(ut.id, 'running', { startedAt: new Date() });
-            unlocked.push(ut.identifier);
+          // 1. Check afterIds checkpoint on parent
+          if (task.parentTaskId) {
+            const parentTask = await model.findById(task.parentTaskId);
+            if (parentTask && model.shouldPauseAfterComplete(parentTask, task.identifier)) {
+              // Pause the parent task for review
+              await model.updateStatus(parentTask.id, 'paused');
+              checkpointTriggered = true;
+            }
+
+            // 2. Check if all sibling subtasks are done
+            allSubtasksDone = await model.areAllSubtasksCompleted(task.parentTaskId);
           }
 
-          // 2. Check if all sibling subtasks are done (notify parent)
-          if (task.parentTaskId) {
-            allSubtasksDone = await model.areAllSubtasksCompleted(task.parentTaskId);
+          // 3. Unlock tasks blocked by this one
+          const unlockedTasks = await model.getUnlockedTasks(task.id);
+          for (const ut of unlockedTasks) {
+            // Check beforeIds checkpoint on parent before starting
+            let shouldPause = false;
+            if (ut.parentTaskId) {
+              const parentTask = await model.findById(ut.parentTaskId);
+              if (parentTask && model.shouldPauseBeforeStart(parentTask, ut.identifier)) {
+                shouldPause = true;
+              }
+            }
+
+            if (shouldPause) {
+              await model.updateStatus(ut.id, 'paused');
+              paused.push(ut.identifier);
+            } else {
+              await model.updateStatus(ut.id, 'running', { startedAt: new Date() });
+              unlocked.push(ut.identifier);
+            }
           }
         }
 
@@ -345,6 +431,8 @@ export const taskRouter = router({
           message: `Task ${status}`,
           success: true,
           ...(unlocked.length > 0 && { unlocked }),
+          ...(paused.length > 0 && { paused }),
+          ...(checkpointTriggered && { checkpointTriggered: true }),
           ...(allSubtasksDone && { allSubtasksDone: true, parentTaskId: task.parentTaskId }),
         };
       } catch (error) {

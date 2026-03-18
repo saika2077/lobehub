@@ -469,6 +469,57 @@ describe('TaskModel', () => {
     });
   });
 
+  describe('checkpoint', () => {
+    it('should get and update checkpoint config', async () => {
+      const model = new TaskModel(serverDB, userId);
+      const task = await model.create({ instruction: 'Test' });
+
+      // Initially empty
+      const empty = model.getCheckpointConfig(task);
+      expect(empty).toEqual({});
+
+      // Set checkpoint
+      const updated = await model.updateCheckpointConfig(task.id, {
+        onAgentRequest: true,
+        tasks: { afterIds: ['TASK-2'], beforeIds: ['TASK-3'] },
+        topic: { after: true },
+      });
+
+      const config = model.getCheckpointConfig(updated!);
+      expect(config.onAgentRequest).toBe(true);
+      expect(config.topic?.after).toBe(true);
+      expect(config.tasks?.beforeIds).toEqual(['TASK-3']);
+      expect(config.tasks?.afterIds).toEqual(['TASK-2']);
+    });
+
+    it('should check shouldPauseBeforeStart', async () => {
+      const model = new TaskModel(serverDB, userId);
+      const parent = await model.create({ instruction: 'Parent' });
+
+      await model.updateCheckpointConfig(parent.id, {
+        tasks: { beforeIds: ['TASK-5'] },
+      });
+
+      const parentUpdated = (await model.findById(parent.id))!;
+      expect(model.shouldPauseBeforeStart(parentUpdated, 'TASK-5')).toBe(true);
+      expect(model.shouldPauseBeforeStart(parentUpdated, 'TASK-6')).toBe(false);
+    });
+
+    it('should check shouldPauseAfterComplete', async () => {
+      const model = new TaskModel(serverDB, userId);
+      const parent = await model.create({ instruction: 'Parent' });
+
+      await model.updateCheckpointConfig(parent.id, {
+        tasks: { afterIds: ['TASK-2', 'TASK-3'] },
+      });
+
+      const parentUpdated = (await model.findById(parent.id))!;
+      expect(model.shouldPauseAfterComplete(parentUpdated, 'TASK-2')).toBe(true);
+      expect(model.shouldPauseAfterComplete(parentUpdated, 'TASK-3')).toBe(true);
+      expect(model.shouldPauseAfterComplete(parentUpdated, 'TASK-4')).toBe(false);
+    });
+  });
+
   describe('topic management', () => {
     it('should increment topic count', async () => {
       const model = new TaskModel(serverDB, userId);

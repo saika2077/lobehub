@@ -4,6 +4,18 @@ import type { NewTask, TaskItem } from '../schemas/task';
 import { taskDependencies, taskDocuments, tasks } from '../schemas/task';
 import type { LobeChatDatabase } from '../type';
 
+export interface CheckpointConfig {
+  onAgentRequest?: boolean;
+  tasks?: {
+    afterIds?: string[];
+    beforeIds?: string[];
+  };
+  topic?: {
+    after?: boolean;
+    before?: boolean;
+  };
+}
+
 export class TaskModel {
   private readonly userId: string;
   private readonly db: LobeChatDatabase;
@@ -173,6 +185,32 @@ export class TaskModel {
       .returning();
 
     return result.length;
+  }
+
+  // ========== Checkpoint ==========
+
+  getCheckpointConfig(task: TaskItem): CheckpointConfig {
+    return (task.config as Record<string, any>)?.checkpoint || {};
+  }
+
+  async updateCheckpointConfig(id: string, checkpoint: CheckpointConfig): Promise<TaskItem | null> {
+    const task = await this.findById(id);
+    if (!task) return null;
+
+    const config = { ...(task.config as Record<string, any>), checkpoint };
+    return this.update(id, { config });
+  }
+
+  // Check if a task should be paused before starting (parent's tasks.beforeIds)
+  shouldPauseBeforeStart(parentTask: TaskItem, childIdentifier: string): boolean {
+    const checkpoint = this.getCheckpointConfig(parentTask);
+    return checkpoint.tasks?.beforeIds?.includes(childIdentifier) ?? false;
+  }
+
+  // Check if a task should be paused after completing (parent's tasks.afterIds)
+  shouldPauseAfterComplete(parentTask: TaskItem, childIdentifier: string): boolean {
+    const checkpoint = this.getCheckpointConfig(parentTask);
+    return checkpoint.tasks?.afterIds?.includes(childIdentifier) ?? false;
   }
 
   // ========== Heartbeat ==========
