@@ -267,6 +267,35 @@ table agent_eval_test_cases {
   }
 }
 
+table briefs {
+  id uuid [pk, not null, default: `gen_random_uuid()`]
+  user_id text [not null]
+  task_id text
+  cron_job_id text
+  topic_id text
+  agent_id text
+  type text [not null]
+  priority text [default: 'info']
+  title text [not null]
+  summary text [not null]
+  artifacts jsonb
+  actions jsonb
+  comment_type text
+  read_at "timestamp with time zone"
+  resolved_at "timestamp with time zone"
+  created_at "timestamp with time zone" [not null, default: `now()`]
+
+  indexes {
+    user_id [name: 'briefs_user_id_idx']
+    task_id [name: 'briefs_task_id_idx']
+    cron_job_id [name: 'briefs_cron_job_id_idx']
+    agent_id [name: 'briefs_agent_id_idx']
+    type [name: 'briefs_type_idx']
+    priority [name: 'briefs_priority_idx']
+    (user_id, resolved_at) [name: 'briefs_unresolved_idx']
+  }
+}
+
 table agent_skills {
   id text [pk, not null]
   name text [not null]

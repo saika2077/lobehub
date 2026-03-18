@@ -672,6 +672,13 @@
       "when": 1773850982237,
       "tag": "0095_add_task_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 96,
+      "version": "7",
+      "when": 1773853482934,
+      "tag": "0096_add_briefs_table",
+      "breakpoints": true
     }
   ],
   "version": "6"
