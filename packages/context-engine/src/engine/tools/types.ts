@@ -30,6 +30,7 @@ export interface LobeChatPluginApi {
 
 export interface LobeToolManifest {
   api: LobeChatPluginApi[];
+  humanIntervention?: ExtendedHumanInterventionConfig;
   identifier: string;
   meta: LobeToolManifestMeta;
   systemRole?: string;

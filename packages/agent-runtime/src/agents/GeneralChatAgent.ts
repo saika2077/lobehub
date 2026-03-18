@@ -63,7 +63,8 @@ export class GeneralChatAgent implements Agent {
     // Find the specific API in the manifest
     const api = manifest.api?.find((a: any) => a.name === apiName);
 
-    return api?.humanIntervention;
+    // API-level config takes precedence over manifest-level config
+    return api?.humanIntervention ?? manifest.humanIntervention;
   }
 
   private isDynamicInterventionConfig(
