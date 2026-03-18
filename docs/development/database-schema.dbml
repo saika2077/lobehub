@@ -1340,6 +1340,79 @@ table sessions {
   }
 }
 
+table task_dependencies {
+  id uuid [pk, not null, default: `gen_random_uuid()`]
+  task_id text [not null]
+  depends_on_id text [not null]
+  type text [not null, default: 'blocks']
+  condition jsonb
+  created_at "timestamp with time zone" [not null, default: `now()`]
+
+  indexes {
+    (task_id, depends_on_id) [name: 'task_deps_unique_idx', unique]
+    task_id [name: 'task_deps_task_id_idx']
+    depends_on_id [name: 'task_deps_depends_on_id_idx']
+  }
+}
+
+table task_documents {
+  id uuid [pk, not null, default: `gen_random_uuid()`]
+  task_id text [not null]
+  document_id text [not null]
+  pinned_by text [not null, default: 'agent']
+  created_at "timestamp with time zone" [not null, default: `now()`]
+
+  indexes {
+    (task_id, document_id) [name: 'task_docs_unique_idx', unique]
+    task_id [name: 'task_docs_task_id_idx']
+    document_id [name: 'task_docs_document_id_idx']
+  }
+}
+
+table tasks {
+  id text [pk, not null]
+  identifier text [not null]
+  seq integer [not null]
+  created_by_user_id text [not null]
+  created_by_agent_id text
+  assignee_user_id text
+  assignee_agent_id text
+  parent_task_id text
+  name text
+  description varchar(255)
+  instruction text [not null]
+  status text [not null, default: 'backlog']
+  priority integer [default: 0]
+  heartbeat_interval integer [default: 300]
+  heartbeat_timeout integer
+  last_heartbeat_at "timestamp with time zone"
+  schedule_pattern text
+  schedule_timezone text [default: 'UTC']
+  total_topics integer [default: 0]
+  max_topics integer
+  current_topic_id text
+  context jsonb [default: `{}`]
+  config jsonb [default: `{}`]
+  error text
+  started_at "timestamp with time zone"
+  completed_at "timestamp with time zone"
+  accessed_at "timestamp with time zone" [not null, default: `now()`]
+  created_at "timestamp with time zone" [not null, default: `now()`]
+  updated_at "timestamp with time zone" [not null, default: `now()`]
+
+  indexes {
+    (identifier, created_by_user_id) [name: 'tasks_identifier_idx', unique]
+    created_by_user_id [name: 'tasks_created_by_user_id_idx']
+    created_by_agent_id [name: 'tasks_created_by_agent_id_idx']
+    assignee_user_id [name: 'tasks_assignee_user_id_idx']
+    assignee_agent_id [name: 'tasks_assignee_agent_id_idx']
+    parent_task_id [name: 'tasks_parent_task_id_idx']
+    status [name: 'tasks_status_idx']
+    priority [name: 'tasks_priority_idx']
+    (status, last_heartbeat_at) [name: 'tasks_heartbeat_idx']
+  }
+}
+
 table threads {
   id text [pk, not null]
   title text

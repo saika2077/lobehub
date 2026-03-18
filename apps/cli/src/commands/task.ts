@@ -1,0 +1,427 @@
+import type { Command } from 'commander';
+import pc from 'picocolors';
+
+import { getTrpcClient } from '../api/client';
+import { confirm, outputJson, printTable, timeAgo, truncate } from '../utils/format';
+import { log } from '../utils/logger';
+
+export function registerTaskCommand(program: Command) {
+  const task = program.command('task').description('Manage agent tasks');
+
+  // ── list ──────────────────────────────────────────────
+
+  task
+    .command('list')
+    .description('List tasks')
+    .option(
+      '--status <status>',
+      'Filter by status (pending/running/paused/completed/failed/canceled)',
+    )
+    .option('--root', 'Only show root tasks (no parent)')
+    .option('--parent <id>', 'Filter by parent task ID')
+    .option('--agent <id>', 'Filter by assignee agent ID')
+    .option('-L, --limit <n>', 'Page size', '50')
+    .option('--offset <n>', 'Offset', '0')
+    .option('--json [fields]', 'Output JSON')
+    .action(
+      async (options: {
+        agent?: string;
+        json?: string | boolean;
+        limit?: string;
+        offset?: string;
+        parent?: string;
+        root?: boolean;
+        status?: string;
+      }) => {
+        const client = await getTrpcClient();
+
+        const input: Record<string, any> = {};
+        if (options.status) input.status = options.status;
+        if (options.root) input.parentTaskId = null;
+        if (options.parent) input.parentTaskId = options.parent;
+        if (options.agent) input.assigneeAgentId = options.agent;
+        if (options.limit) input.limit = Number.parseInt(options.limit, 10);
+        if (options.offset) input.offset = Number.parseInt(options.offset, 10);
+
+        const result = await client.task.list.query(input as any);
+
+        if (options.json !== undefined) {
+          outputJson(result.data, options.json);
+          return;
+        }
+
+        if (!result.data || result.data.length === 0) {
+          log.info('No tasks found.');
+          return;
+        }
+
+        const rows = result.data.map((t: any) => [
+          pc.dim(t.identifier),
+          truncate(t.name || t.instruction, 40),
+          statusBadge(t.status),
+          priorityLabel(t.priority),
+          t.assigneeAgentId ? pc.dim(t.assigneeAgentId) : '-',
+          t.parentTaskId ? pc.dim('↳ subtask') : '',
+          timeAgo(t.createdAt),
+        ]);
+
+        printTable(rows, ['ID', 'NAME', 'STATUS', 'PRI', 'AGENT', 'TYPE', 'CREATED']);
+        log.info(`Total: ${result.total}`);
+      },
+    );
+
+  // ── view ──────────────────────────────────────────────
+
+  task
+    .command('view <id>')
+    .description('View task details (by ID or identifier like TASK-1)')
+    .option('--json [fields]', 'Output JSON')
+    .action(async (id: string, options: { json?: string | boolean }) => {
+      const client = await getTrpcClient();
+
+      const result = await client.task.find.query({ id });
+
+      if (options.json !== undefined) {
+        outputJson(result.data, options.json);
+        return;
+      }
+
+      const t = result.data;
+      console.log(`\n${pc.bold(t.identifier)} ${t.name || ''}`);
+      console.log(
+        `${pc.dim('Status:')} ${statusBadge(t.status)}  ${pc.dim('Priority:')} ${t.priority || 'normal'}`,
+      );
+      console.log(`${pc.dim('Instruction:')} ${t.instruction}`);
+      if (t.description) console.log(`${pc.dim('Description:')} ${t.description}`);
+      if (t.assigneeAgentId) console.log(`${pc.dim('Agent:')} ${t.assigneeAgentId}`);
+      if (t.assigneeUserId) console.log(`${pc.dim('User:')} ${t.assigneeUserId}`);
+      if (t.parentTaskId) console.log(`${pc.dim('Parent:')} ${t.parentTaskId}`);
+      console.log(
+        `${pc.dim('Topics:')} ${t.totalTopics}  ${pc.dim('Created:')} ${timeAgo(t.createdAt)}`,
+      );
+      if (t.error) console.log(`${pc.red('Error:')} ${t.error}`);
+
+      // Show subtasks
+      const subtasks = await client.task.getSubtasks.query({ id: t.id });
+      if (subtasks.data && subtasks.data.length > 0) {
+        console.log(`\n${pc.bold('Subtasks:')}`);
+        for (const s of subtasks.data) {
+          console.log(
+            `  ${pc.dim(s.identifier)} ${statusBadge(s.status)} ${s.name || s.instruction}`,
+          );
+        }
+      }
+
+      // Show dependencies
+      const deps = await client.task.getDependencies.query({ id: t.id });
+      if (deps.data && deps.data.length > 0) {
+        console.log(`\n${pc.bold('Dependencies:')}`);
+        for (const d of deps.data) {
+          console.log(`  ${pc.dim(d.type)}: ${d.dependsOnId}`);
+        }
+      }
+      console.log();
+    });
+
+  // ── create ──────────────────────────────────────────────
+
+  task
+    .command('create')
+    .description('Create a new task')
+    .requiredOption('-i, --instruction <text>', 'Task instruction')
+    .option('-n, --name <name>', 'Task name')
+    .option('--agent <id>', 'Assign to agent')
+    .option('--parent <id>', 'Parent task ID')
+    .option('--priority <n>', 'Priority (0=none, 1=urgent, 2=high, 3=normal, 4=low)', '0')
+    .option('--prefix <prefix>', 'Identifier prefix', 'TASK')
+    .option('--json [fields]', 'Output JSON')
+    .action(
+      async (options: {
+        agent?: string;
+        instruction: string;
+        json?: string | boolean;
+        name?: string;
+        parent?: string;
+        prefix?: string;
+        priority?: string;
+      }) => {
+        const client = await getTrpcClient();
+
+        const input: Record<string, any> = {
+          instruction: options.instruction,
+        };
+        if (options.name) input.name = options.name;
+        if (options.agent) input.assigneeAgentId = options.agent;
+        if (options.parent) input.parentTaskId = options.parent;
+        if (options.priority) input.priority = Number.parseInt(options.priority, 10);
+        if (options.prefix) input.identifierPrefix = options.prefix;
+
+        const result = await client.task.create.mutate(input as any);
+
+        if (options.json !== undefined) {
+          outputJson(result.data, options.json);
+          return;
+        }
+
+        log.info(`Task created: ${pc.bold(result.data.identifier)} ${result.data.name || ''}`);
+      },
+    );
+
+  // ── edit ──────────────────────────────────────────────
+
+  task
+    .command('edit <id>')
+    .description('Update a task')
+    .option('-n, --name <name>', 'Task name')
+    .option('-i, --instruction <text>', 'Task instruction')
+    .option('--agent <id>', 'Assign to agent')
+    .option('--priority <p>', 'Priority')
+    .option('--json [fields]', 'Output JSON')
+    .action(
+      async (
+        id: string,
+        options: {
+          agent?: string;
+          instruction?: string;
+          json?: string | boolean;
+          name?: string;
+          priority?: string;
+        },
+      ) => {
+        const client = await getTrpcClient();
+
+        const input: Record<string, any> = { id };
+        if (options.name) input.name = options.name;
+        if (options.instruction) input.instruction = options.instruction;
+        if (options.agent) input.assigneeAgentId = options.agent;
+        if (options.priority) input.priority = Number.parseInt(options.priority, 10);
+
+        const result = await client.task.update.mutate(input as any);
+
+        if (options.json !== undefined) {
+          outputJson(result.data, options.json);
+          return;
+        }
+
+        log.info(`Task updated: ${pc.bold(result.data.identifier)}`);
+      },
+    );
+
+  // ── delete ──────────────────────────────────────────────
+
+  task
+    .command('delete <id>')
+    .description('Delete a task')
+    .option('-y, --yes', 'Skip confirmation')
+    .action(async (id: string, options: { yes?: boolean }) => {
+      if (!options.yes) {
+        const ok = await confirm(`Delete task ${pc.bold(id)}?`);
+        if (!ok) return;
+      }
+
+      const client = await getTrpcClient();
+      await client.task.delete.mutate({ id });
+      log.info(`Task ${pc.bold(id)} deleted.`);
+    });
+
+  // ── start ──────────────────────────────────────────────
+
+  task
+    .command('start <id>')
+    .description('Start a task (pending → running)')
+    .action(async (id: string) => {
+      const client = await getTrpcClient();
+      const result = await client.task.updateStatus.mutate({ id, status: 'running' });
+      log.info(`Task ${pc.bold(result.data.identifier)} started.`);
+    });
+
+  // ── pause ──────────────────────────────────────────────
+
+  task
+    .command('pause <id>')
+    .description('Pause a running task')
+    .action(async (id: string) => {
+      const client = await getTrpcClient();
+      const result = await client.task.updateStatus.mutate({ id, status: 'paused' });
+      log.info(`Task ${pc.bold(result.data.identifier)} paused.`);
+    });
+
+  // ── resume ──────────────────────────────────────────────
+
+  task
+    .command('resume <id>')
+    .description('Resume a paused task')
+    .action(async (id: string) => {
+      const client = await getTrpcClient();
+      const result = await client.task.updateStatus.mutate({ id, status: 'running' });
+      log.info(`Task ${pc.bold(result.data.identifier)} resumed.`);
+    });
+
+  // ── complete ──────────────────────────────────────────────
+
+  task
+    .command('complete <id>')
+    .description('Mark a task as completed')
+    .action(async (id: string) => {
+      const client = await getTrpcClient();
+      const result = await client.task.updateStatus.mutate({ id, status: 'completed' });
+      log.info(`Task ${pc.bold(result.data.identifier)} completed.`);
+    });
+
+  // ── cancel ──────────────────────────────────────────────
+
+  task
+    .command('cancel <id>')
+    .description('Cancel a task')
+    .action(async (id: string) => {
+      const client = await getTrpcClient();
+      const result = await client.task.updateStatus.mutate({ id, status: 'canceled' });
+      log.info(`Task ${pc.bold(result.data.identifier)} canceled.`);
+    });
+
+  // ── tree ──────────────────────────────────────────────
+
+  task
+    .command('tree <id>')
+    .description('Show task tree (subtasks + dependencies)')
+    .option('--json [fields]', 'Output JSON')
+    .action(async (id: string, options: { json?: string | boolean }) => {
+      const client = await getTrpcClient();
+      const result = await client.task.getTaskTree.query({ id });
+
+      if (options.json !== undefined) {
+        outputJson(result.data, options.json);
+        return;
+      }
+
+      if (!result.data || result.data.length === 0) {
+        log.info('No tasks found.');
+        return;
+      }
+
+      // Build tree display (raw SQL returns snake_case)
+      const taskMap = new Map<string, any>();
+      for (const t of result.data) taskMap.set(t.id, t);
+
+      const printNode = (taskId: string, indent: number) => {
+        const t = taskMap.get(taskId);
+        if (!t) return;
+
+        const prefix = indent === 0 ? '' : '  '.repeat(indent) + '├── ';
+        const name = t.name || t.identifier || '';
+        const status = t.status || 'pending';
+        const identifier = t.identifier || t.id;
+        console.log(`${prefix}${pc.dim(identifier)} ${statusBadge(status)} ${name}`);
+
+        // Print children (handle both camelCase and snake_case)
+        for (const child of result.data) {
+          const childParent = child.parentTaskId || child.parent_task_id;
+          if (childParent === taskId) {
+            printNode(child.id, indent + 1);
+          }
+        }
+      };
+
+      // Find root - resolve identifier first
+      const resolved = await client.task.find.query({ id });
+      const rootId = resolved.data.id;
+      const root = result.data.find((t: any) => t.id === rootId);
+      if (root) printNode(root.id, 0);
+      else log.info('Root task not found in tree.');
+    });
+
+  // ── dep ──────────────────────────────────────────────
+
+  const dep = task.command('dep').description('Manage task dependencies');
+
+  dep
+    .command('add <taskId> <dependsOnId>')
+    .description('Add dependency (taskId blocks on dependsOnId)')
+    .option('--type <type>', 'Dependency type (blocks/relates)', 'blocks')
+    .action(async (taskId: string, dependsOnId: string, options: { type?: string }) => {
+      const client = await getTrpcClient();
+      await client.task.addDependency.mutate({
+        dependsOnId,
+        taskId,
+        type: (options.type || 'blocks') as any,
+      });
+      log.info(`Dependency added: ${taskId} ${options.type || 'blocks'} on ${dependsOnId}`);
+    });
+
+  dep
+    .command('rm <taskId> <dependsOnId>')
+    .description('Remove dependency')
+    .action(async (taskId: string, dependsOnId: string) => {
+      const client = await getTrpcClient();
+      await client.task.removeDependency.mutate({ dependsOnId, taskId });
+      log.info(`Dependency removed.`);
+    });
+
+  dep
+    .command('list <taskId>')
+    .description('List dependencies for a task')
+    .option('--json [fields]', 'Output JSON')
+    .action(async (taskId: string, options: { json?: string | boolean }) => {
+      const client = await getTrpcClient();
+      const result = await client.task.getDependencies.query({ id: taskId });
+
+      if (options.json !== undefined) {
+        outputJson(result.data, options.json);
+        return;
+      }
+
+      if (!result.data || result.data.length === 0) {
+        log.info('No dependencies.');
+        return;
+      }
+
+      const rows = result.data.map((d: any) => [d.type, d.dependsOnId, timeAgo(d.createdAt)]);
+      printTable(rows, ['TYPE', 'DEPENDS ON', 'CREATED']);
+    });
+}
+
+function statusBadge(status: string): string {
+  switch (status) {
+    case 'backlog': {
+      return pc.dim('○ backlog');
+    }
+    case 'running': {
+      return pc.blue('● running');
+    }
+    case 'paused': {
+      return pc.yellow('◐ paused');
+    }
+    case 'completed': {
+      return pc.green('✓ completed');
+    }
+    case 'failed': {
+      return pc.red('✗ failed');
+    }
+    case 'canceled': {
+      return pc.dim('⊘ canceled');
+    }
+    default: {
+      return status;
+    }
+  }
+}
+
+function priorityLabel(priority: number | null | undefined): string {
+  switch (priority) {
+    case 1: {
+      return pc.red('urgent');
+    }
+    case 2: {
+      return pc.yellow('high');
+    }
+    case 3: {
+      return 'normal';
+    }
+    case 4: {
+      return pc.dim('low');
+    }
+    default: {
+      return pc.dim('-');
+    }
+  }
+}
