@@ -1,6 +1,7 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
+import { BriefModel } from '@/database/models/brief';
 import { TaskModel } from '@/database/models/task';
 import { authedProcedure, router } from '@/libs/trpc/lambda';
 import { serverDatabase } from '@/libs/trpc/lambda/middleware';
@@ -30,6 +31,8 @@ const updateSchema = z.object({
   config: z.record(z.unknown()).optional(),
   context: z.record(z.unknown()).optional(),
   description: z.string().optional(),
+  heartbeatInterval: z.number().min(1).optional(),
+  heartbeatTimeout: z.number().min(1).nullable().optional(),
   instruction: z.string().optional(),
   name: z.string().optional(),
   priority: z.number().min(0).max(4).optional(),
@@ -198,6 +201,68 @@ export const taskRouter = router({
         cause: error,
         code: 'INTERNAL_SERVER_ERROR',
         message: 'Failed to get task tree',
+      });
+    }
+  }),
+
+  heartbeat: taskProcedure.input(idInput).mutation(async ({ input, ctx }) => {
+    try {
+      const model = new TaskModel(ctx.serverDB, ctx.userId);
+      const task = await resolveOrThrow(model, input.id);
+      await model.updateHeartbeat(task.id);
+      return { message: 'Heartbeat updated', success: true };
+    } catch (error) {
+      if (error instanceof TRPCError) throw error;
+      console.error('[task:heartbeat]', error);
+      throw new TRPCError({
+        cause: error,
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Failed to update heartbeat',
+      });
+    }
+  }),
+
+  watchdog: taskProcedure.mutation(async ({ ctx }) => {
+    try {
+      const stuckTasks = await TaskModel.findStuckTasks(ctx.serverDB);
+      const failed: string[] = [];
+
+      for (const task of stuckTasks) {
+        const model = new TaskModel(ctx.serverDB, task.createdByUserId);
+        await model.updateStatus(task.id, 'failed', {
+          completedAt: new Date(),
+          error: 'Heartbeat timeout',
+        });
+
+        // Create error brief
+        const briefModel = new BriefModel(ctx.serverDB, task.createdByUserId);
+        await briefModel.create({
+          agentId: task.assigneeAgentId || undefined,
+          priority: 'urgent',
+          summary: `Task has been running without heartbeat update for more than ${task.heartbeatTimeout} seconds.`,
+          taskId: task.id,
+          title: `${task.identifier} heartbeat timeout`,
+          type: 'error',
+        });
+
+        failed.push(task.identifier);
+      }
+
+      return {
+        checked: stuckTasks.length,
+        failed,
+        message:
+          failed.length > 0
+            ? `${failed.length} stuck tasks marked as failed`
+            : 'No stuck tasks found',
+        success: true,
+      };
+    } catch (error) {
+      console.error('[task:watchdog]', error);
+      throw new TRPCError({
+        cause: error,
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Watchdog check failed',
       });
     }
   }),

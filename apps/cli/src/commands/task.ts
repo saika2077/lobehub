@@ -177,13 +177,19 @@ export function registerTaskCommand(program: Command) {
     .option('-n, --name <name>', 'Task name')
     .option('-i, --instruction <text>', 'Task instruction')
     .option('--agent <id>', 'Assign to agent')
-    .option('--priority <p>', 'Priority')
+    .option('--priority <n>', 'Priority (0-4)')
+    .option('--heartbeat-interval <n>', 'Heartbeat interval in seconds')
+    .option('--heartbeat-timeout <n>', 'Heartbeat timeout in seconds (0 to disable)')
+    .option('--description <text>', 'Task description')
     .option('--json [fields]', 'Output JSON')
     .action(
       async (
         id: string,
         options: {
           agent?: string;
+          description?: string;
+          heartbeatInterval?: string;
+          heartbeatTimeout?: string;
           instruction?: string;
           json?: string | boolean;
           name?: string;
@@ -195,13 +201,20 @@ export function registerTaskCommand(program: Command) {
         const input: Record<string, any> = { id };
         if (options.name) input.name = options.name;
         if (options.instruction) input.instruction = options.instruction;
+        if (options.description) input.description = options.description;
         if (options.agent) input.assigneeAgentId = options.agent;
         if (options.priority) input.priority = Number.parseInt(options.priority, 10);
+        if (options.heartbeatInterval)
+          input.heartbeatInterval = Number.parseInt(options.heartbeatInterval, 10);
+        if (options.heartbeatTimeout !== undefined) {
+          const val = Number.parseInt(options.heartbeatTimeout, 10);
+          input.heartbeatTimeout = val === 0 ? null : val;
+        }
 
         const result = await client.task.update.mutate(input as any);
 
         if (options.json !== undefined) {
-          outputJson(result.data, options.json);
+          outputJson(result.data, typeof options.json === 'string' ? options.json : undefined);
           return;
         }
 
@@ -380,6 +393,35 @@ export function registerTaskCommand(program: Command) {
       const root = result.data.find((t: any) => t.id === rootId);
       if (root) printNode(root.id, 0);
       else log.info('Root task not found in tree.');
+    });
+
+  // ── heartbeat ──────────────────────────────────────────────
+
+  task
+    .command('heartbeat <id>')
+    .description('Manually send heartbeat for a running task')
+    .action(async (id: string) => {
+      const client = await getTrpcClient();
+      await client.task.heartbeat.mutate({ id });
+      log.info(`Heartbeat sent for ${pc.bold(id)}.`);
+    });
+
+  // ── watchdog ──────────────────────────────────────────────
+
+  task
+    .command('watchdog')
+    .description('Run watchdog check — detect and fail stuck tasks')
+    .action(async () => {
+      const client = await getTrpcClient();
+      const result = (await client.task.watchdog.mutate()) as any;
+
+      if (result.failed?.length > 0) {
+        log.info(
+          `${pc.red('Stuck tasks failed:')} ${result.failed.map((id: string) => pc.bold(id)).join(', ')}`,
+        );
+      } else {
+        log.info('No stuck tasks found.');
+      }
     });
 
   // ── checkpoint ──────────────────────────────────────────────
