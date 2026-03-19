@@ -46,6 +46,61 @@ const listSchema = z.object({
   status: z.string().optional(),
 });
 
+// Helper: build task prompt with handoff context from previous topics
+async function buildTaskPrompt(
+  task: Awaited<ReturnType<TaskModel['findById']>> & {},
+  db: any,
+  userId: string,
+  extraPrompt?: string,
+): Promise<string> {
+  // Task header
+  let prompt = task.description
+    ? `## Task: ${task.name || task.identifier}\n\n${task.description}\n\n## Instruction\n\n${task.instruction}`
+    : task.instruction;
+
+  // Inject handoff from previous topics (query by metadata.taskId)
+  if (task.totalTopics && task.totalTopics > 0) {
+    try {
+      const { sql: rawSql } = await import('drizzle-orm');
+      const { topics } = await import('@/database/schemas');
+      const { and, eq, desc } = await import('drizzle-orm');
+
+      const prevTopics = await db
+        .select({ metadata: topics.metadata, title: topics.title })
+        .from(topics)
+        .where(
+          and(
+            eq(topics.userId, userId),
+            eq(topics.trigger, 'task'),
+            rawSql`${topics.metadata}->>'taskId' = ${task.id}`,
+          ),
+        )
+        .orderBy(desc(topics.createdAt))
+        .limit(4);
+
+      const handoffs = prevTopics
+        .filter((t: any) => t.metadata?.handoff)
+        .map((t: any, i: number) =>
+          i === 0
+            ? `### Previous Topic: ${t.title}\n${JSON.stringify(t.metadata.handoff, null, 2)}`
+            : `- ${t.title}: ${t.metadata.handoff.summary || ''}`,
+        );
+
+      if (handoffs.length > 0) {
+        prompt += `\n\n## Previous Context\n\n${handoffs.join('\n\n')}`;
+      }
+    } catch {
+      // If topic query fails, continue without handoff
+    }
+  }
+
+  if (extraPrompt) {
+    prompt += `\n\n## Additional Context\n\n${extraPrompt}`;
+  }
+
+  return prompt;
+}
+
 // Helper: resolve id/identifier and throw if not found
 async function resolveOrThrow(model: TaskModel, id: string) {
   const task = await model.resolve(id);
@@ -304,14 +359,8 @@ export const taskRouter = router({
           });
         }
 
-        // Build prompt from task instruction + optional extra prompt
-        let prompt = task.instruction;
-        if (task.description) {
-          prompt = `## Task: ${task.name || task.identifier}\n\n${task.description}\n\n## Instruction\n\n${task.instruction}`;
-        }
-        if (extraPrompt) {
-          prompt += `\n\n## Additional Context\n\n${extraPrompt}`;
-        }
+        // Build prompt with handoff context from previous topics
+        const prompt = await buildTaskPrompt(task, ctx.serverDB, ctx.userId, extraPrompt);
 
         // Update task status to running if not already
         if (task.status === 'backlog' || task.status === 'paused') {

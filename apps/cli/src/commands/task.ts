@@ -256,35 +256,71 @@ export function registerTaskCommand(program: Command) {
     .command('run <id>')
     .description('Run a task — trigger agent execution')
     .option('-p, --prompt <text>', 'Additional context for the agent')
+    .option('--topics <n>', 'Run N topics in sequence (default: 1)', '1')
+    .option('--delay <s>', 'Delay between topics in seconds', '0')
     .option('--json', 'Output full JSON event stream')
     .option('-v, --verbose', 'Show detailed tool call info')
-    .action(async (id: string, options: { json?: boolean; prompt?: string; verbose?: boolean }) => {
-      const client = await getTrpcClient();
+    .action(
+      async (
+        id: string,
+        options: {
+          delay?: string;
+          json?: boolean;
+          prompt?: string;
+          topics?: string;
+          verbose?: boolean;
+        },
+      ) => {
+        const topicCount = Number.parseInt(options.topics || '1', 10);
+        const delaySec = Number.parseInt(options.delay || '0', 10);
 
-      // 1. Trigger task execution
-      const result = (await client.task.run.mutate({
-        id,
-        ...(options.prompt && { prompt: options.prompt }),
-      })) as any;
+        for (let i = 0; i < topicCount; i++) {
+          if (i > 0) {
+            log.info(`\n${'─'.repeat(60)}`);
+            log.info(`Topic ${i + 1}/${topicCount}`);
+            if (delaySec > 0) {
+              log.info(`Waiting ${delaySec}s before next topic...`);
+              await new Promise((r) => setTimeout(r, delaySec * 1000));
+            }
+          }
 
-      if (!result.success) {
-        log.error(`Failed to run task: ${result.error || result.message || 'Unknown error'}`);
-        process.exit(1);
-      }
+          const client = await getTrpcClient();
 
-      const operationId = result.operationId;
-      log.info(`Task ${pc.bold(result.taskIdentifier)} running`);
-      log.info(`Operation: ${pc.dim(operationId)} · Topic: ${pc.dim(result.topicId || 'n/a')}`);
+          // Only pass extra prompt on first topic
+          const result = (await client.task.run.mutate({
+            id,
+            ...(i === 0 && options.prompt && { prompt: options.prompt }),
+          })) as any;
 
-      // 2. Connect to SSE stream
-      const { serverUrl, headers } = await getAuthInfo();
-      const streamUrl = `${serverUrl}/api/agent/stream?operationId=${encodeURIComponent(operationId)}`;
+          if (!result.success) {
+            log.error(`Failed to run task: ${result.error || result.message || 'Unknown error'}`);
+            process.exit(1);
+          }
 
-      await streamAgentEvents(streamUrl, headers, {
-        json: options.json,
-        verbose: options.verbose,
-      });
-    });
+          const operationId = result.operationId;
+          if (i === 0) {
+            log.info(`Task ${pc.bold(result.taskIdentifier)} running`);
+          }
+          log.info(`Operation: ${pc.dim(operationId)} · Topic: ${pc.dim(result.topicId || 'n/a')}`);
+
+          // Connect to SSE stream and wait for completion
+          const { serverUrl, headers } = await getAuthInfo();
+          const streamUrl = `${serverUrl}/api/agent/stream?operationId=${encodeURIComponent(operationId)}`;
+
+          await streamAgentEvents(streamUrl, headers, {
+            json: options.json,
+            verbose: options.verbose,
+          });
+
+          // Update heartbeat after each topic
+          try {
+            await client.task.heartbeat.mutate({ id });
+          } catch {
+            // ignore heartbeat errors
+          }
+        }
+      },
+    );
 
   // ── pause ──────────────────────────────────────────────
 
