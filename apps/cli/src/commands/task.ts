@@ -548,6 +548,109 @@ export function registerTaskCommand(program: Command) {
       },
     );
 
+  // ── review ──────────────────────────────────────────────
+
+  const rv = task.command('review').description('Manage task review (LLM-as-Judge)');
+
+  rv.command('view <id>')
+    .description('View review config for a task')
+    .action(async (id: string) => {
+      const client = await getTrpcClient();
+      const result = await client.task.getReview.query({ id });
+      const r = result.data as any;
+
+      if (!r) {
+        log.info('Review not configured for this task.');
+        return;
+      }
+
+      console.log(`\n${pc.bold('Review config:')}`);
+      console.log(`  enabled: ${r.enabled}`);
+      console.log(`  judge: ${r.judge.model} (${r.judge.provider})`);
+      console.log(`  maxIterations: ${r.maxIterations}`);
+      console.log(`  autoRetry: ${r.autoRetry}`);
+      console.log(`  criteria:`);
+      for (const c of r.criteria || []) {
+        console.log(
+          `    - ${c.name}: ≥ ${c.threshold}%${c.weight ? ` (weight: ${c.weight})` : ''}`,
+        );
+      }
+      console.log();
+    });
+
+  rv.command('set <id>')
+    .description('Configure review')
+    .option('--model <model>', 'Judge model (uses default if omitted)')
+    .option('--provider <provider>', 'Judge provider (uses default if omitted)')
+    .requiredOption(
+      '--criteria <criteria>',
+      'Criteria as name:threshold pairs (comma-separated, e.g. "准确性:80,可读性:70")',
+    )
+    .option('--max-iterations <n>', 'Max review iterations', '3')
+    .option('--no-auto-retry', 'Disable auto retry on failure')
+    .action(
+      async (
+        id: string,
+        options: {
+          autoRetry?: boolean;
+          criteria: string;
+          maxIterations?: string;
+          model: string;
+          provider: string;
+        },
+      ) => {
+        const client = await getTrpcClient();
+
+        const criteria = options.criteria.split(',').map((c: string) => {
+          const [name, threshold] = c.trim().split(':');
+          return { name: name.trim(), threshold: Number.parseInt(threshold, 10) };
+        });
+
+        await client.task.updateReview.mutate({
+          id,
+          review: {
+            autoRetry: options.autoRetry !== false,
+            criteria,
+            enabled: true,
+            judge: {
+              ...(options.model && { model: options.model }),
+              ...(options.provider && { provider: options.provider }),
+            },
+            maxIterations: Number.parseInt(options.maxIterations || '3', 10),
+          },
+        });
+
+        log.info('Review configured.');
+      },
+    );
+
+  rv.command('run <id>')
+    .description('Manually run review on content')
+    .requiredOption('--content <text>', 'Content to review')
+    .action(async (id: string, options: { content: string }) => {
+      const client = await getTrpcClient();
+      const result = (await client.task.runReview.mutate({
+        content: options.content,
+        id,
+      })) as any;
+      const r = result.data;
+
+      console.log(
+        `\n${r.passed ? pc.green('✓ Review passed') : pc.red('✗ Review failed')} (${r.overallScore}%)`,
+      );
+      for (const s of r.scores) {
+        const icon = s.passed ? pc.green('✓') : pc.red('✗');
+        console.log(`  ${icon} ${s.criterion}: ${s.score}% (≥ ${s.threshold}%) — ${s.feedback}`);
+      }
+      if (r.suggestions?.length > 0) {
+        console.log(`\n${pc.dim('Suggestions:')}`);
+        for (const s of r.suggestions) {
+          console.log(`  - ${s}`);
+        }
+      }
+      console.log();
+    });
+
   // ── dep ──────────────────────────────────────────────
 
   const dep = task.command('dep').description('Manage task dependencies');

@@ -190,6 +190,20 @@ export class TaskModel {
     return this.update(id, { config });
   }
 
+  // ========== Review Config ==========
+
+  getReviewConfig(task: TaskItem): Record<string, any> | undefined {
+    return (task.config as Record<string, any>)?.review;
+  }
+
+  async updateReviewConfig(id: string, review: Record<string, any>): Promise<TaskItem | null> {
+    const task = await this.findById(id);
+    if (!task) return null;
+
+    const config = { ...(task.config as Record<string, any>), review };
+    return this.update(id, { config });
+  }
+
   // Check if a task should be paused before starting (parent's tasks.beforeIds)
   shouldPauseBeforeStart(parentTask: TaskItem, childIdentifier: string): boolean {
     const checkpoint = this.getCheckpointConfig(parentTask);

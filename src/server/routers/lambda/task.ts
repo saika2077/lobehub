@@ -6,6 +6,7 @@ import { TaskModel } from '@/database/models/task';
 import { authedProcedure, router } from '@/libs/trpc/lambda';
 import { serverDatabase } from '@/libs/trpc/lambda/middleware';
 import { AiAgentService } from '@/server/services/aiAgent';
+import { TaskReviewService } from '@/server/services/taskReview';
 
 const taskProcedure = authedProcedure.use(serverDatabase);
 
@@ -529,6 +530,131 @@ export const taskRouter = router({
           cause: error,
           code: 'INTERNAL_SERVER_ERROR',
           message: 'Failed to update checkpoint',
+        });
+      }
+    }),
+
+  getReview: taskProcedure.input(idInput).query(async ({ input, ctx }) => {
+    try {
+      const model = new TaskModel(ctx.serverDB, ctx.userId);
+      const task = await resolveOrThrow(model, input.id);
+      return { data: model.getReviewConfig(task) || null, success: true };
+    } catch (error) {
+      if (error instanceof TRPCError) throw error;
+      console.error('[task:getReview]', error);
+      throw new TRPCError({
+        cause: error,
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Failed to get review config',
+      });
+    }
+  }),
+
+  updateReview: taskProcedure
+    .input(
+      idInput.merge(
+        z.object({
+          review: z.object({
+            autoRetry: z.boolean().default(true),
+            criteria: z.array(
+              z.object({
+                description: z.string().optional(),
+                name: z.string(),
+                threshold: z.number().min(0).max(100),
+                weight: z.number().optional(),
+              }),
+            ),
+            enabled: z.boolean(),
+            judge: z
+              .object({
+                model: z.string().optional(),
+                prompt: z.string().optional(),
+                provider: z.string().optional(),
+              })
+              .default({}),
+            maxIterations: z.number().min(1).max(10).default(3),
+          }),
+        }),
+      ),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const { id, review } = input;
+      try {
+        const model = new TaskModel(ctx.serverDB, ctx.userId);
+        const resolved = await resolveOrThrow(model, id);
+        const task = await model.updateReviewConfig(resolved.id, review);
+        if (!task) throw new TRPCError({ code: 'NOT_FOUND', message: 'Task not found' });
+        return {
+          data: model.getReviewConfig(task),
+          message: 'Review config updated',
+          success: true,
+        };
+      } catch (error) {
+        if (error instanceof TRPCError) throw error;
+        console.error('[task:updateReview]', error);
+        throw new TRPCError({
+          cause: error,
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to update review config',
+        });
+      }
+    }),
+
+  runReview: taskProcedure
+    .input(idInput.merge(z.object({ content: z.string().optional() })))
+    .mutation(async ({ input, ctx }) => {
+      try {
+        const model = new TaskModel(ctx.serverDB, ctx.userId);
+        const task = await resolveOrThrow(model, input.id);
+
+        const reviewConfig = model.getReviewConfig(task);
+        if (!reviewConfig?.enabled) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'Review is not enabled for this task',
+          });
+        }
+
+        // Use provided content or try to get from latest topic
+        const content = input.content;
+        if (!content) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message:
+              'Content is required for review. Pass --content or run after a topic completes.',
+          });
+        }
+
+        const reviewService = new TaskReviewService(ctx.serverDB, ctx.userId);
+        const result = await reviewService.review({
+          content,
+          criteria: reviewConfig.criteria,
+          judge: reviewConfig.judge,
+          taskName: task.name || task.identifier,
+        });
+
+        // Create brief with review result
+        const briefModel = new BriefModel(ctx.serverDB, ctx.userId);
+        const scoresSummary = result.scores
+          .map((s: any) => `${s.criterion}: ${s.score}% ${s.passed ? '✓' : '✗'}`)
+          .join(', ');
+
+        await briefModel.create({
+          priority: result.passed ? 'info' : 'normal',
+          summary: `${scoresSummary}\n${result.summary}`,
+          taskId: task.id,
+          title: `${task.identifier} 评审${result.passed ? '通过' : '未通过'} (${result.overallScore}%)`,
+          type: result.passed ? 'result' : 'decision',
+        });
+
+        return { data: result, success: true };
+      } catch (error) {
+        if (error instanceof TRPCError) throw error;
+        console.error('[task:runReview]', error);
+        throw new TRPCError({
+          cause: error,
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to run review',
         });
       }
     }),
