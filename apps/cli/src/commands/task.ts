@@ -2,6 +2,8 @@ import type { Command } from 'commander';
 import pc from 'picocolors';
 
 import { getTrpcClient } from '../api/client';
+import { getAuthInfo } from '../api/http';
+import { streamAgentEvents } from '../utils/agentStream';
 import { confirm, outputJson, printTable, timeAgo, truncate } from '../utils/format';
 import { log } from '../utils/logger';
 
@@ -233,6 +235,42 @@ export function registerTaskCommand(program: Command) {
       const client = await getTrpcClient();
       const result = await client.task.updateStatus.mutate({ id, status: 'running' });
       log.info(`Task ${pc.bold(result.data.identifier)} started.`);
+    });
+
+  // ── run ──────────────────────────────────────────────
+
+  task
+    .command('run <id>')
+    .description('Run a task — trigger agent execution')
+    .option('-p, --prompt <text>', 'Additional context for the agent')
+    .option('--json', 'Output full JSON event stream')
+    .option('-v, --verbose', 'Show detailed tool call info')
+    .action(async (id: string, options: { json?: boolean; prompt?: string; verbose?: boolean }) => {
+      const client = await getTrpcClient();
+
+      // 1. Trigger task execution
+      const result = (await client.task.run.mutate({
+        id,
+        ...(options.prompt && { prompt: options.prompt }),
+      })) as any;
+
+      if (!result.success) {
+        log.error(`Failed to run task: ${result.error || result.message || 'Unknown error'}`);
+        process.exit(1);
+      }
+
+      const operationId = result.operationId;
+      log.info(`Task ${pc.bold(result.taskIdentifier)} running`);
+      log.info(`Operation: ${pc.dim(operationId)} · Topic: ${pc.dim(result.topicId || 'n/a')}`);
+
+      // 2. Connect to SSE stream
+      const { serverUrl, headers } = await getAuthInfo();
+      const streamUrl = `${serverUrl}/api/agent/stream?operationId=${encodeURIComponent(operationId)}`;
+
+      await streamAgentEvents(streamUrl, headers, {
+        json: options.json,
+        verbose: options.verbose,
+      });
     });
 
   // ── pause ──────────────────────────────────────────────

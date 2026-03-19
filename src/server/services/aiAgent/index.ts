@@ -123,13 +123,15 @@ interface InternalExecAgentParams extends ExecAgentParams {
    * Defaults to true. Set to false for non-streaming scenarios (e.g., bot integrations).
    */
   stream?: boolean;
+  /** Task ID that triggered this execution (if trigger is 'task') */
+  taskId?: string;
   /**
    * Custom title for the topic.
    * When provided (including empty string), overrides the default prompt-based title.
    * When undefined, falls back to prompt.slice(0, 50).
    */
   title?: string;
-  /** Topic creation trigger source ('cron' | 'chat' | 'api') */
+  /** Topic creation trigger source ('cron' | 'chat' | 'api' | 'task') */
   trigger?: string;
   /**
    * User intervention configuration
@@ -214,6 +216,7 @@ export class AiAgentService {
       title,
       trigger,
       cronJobId,
+      taskId,
       evalContext,
       maxSteps,
       userInterventionConfig,
@@ -283,10 +286,10 @@ export class AiAgentService {
     // 3. Handle topic creation: if no topicId provided, create a new topic; otherwise reuse existing
     let topicId = appContext?.topicId;
     if (!topicId) {
-      // Prepare metadata with cronJobId and botContext if provided
+      // Prepare metadata with cronJobId, taskId, and botContext if provided
       const metadata =
-        cronJobId || botContext
-          ? { bot: botContext, cronJobId: cronJobId || undefined }
+        cronJobId || taskId || botContext
+          ? { bot: botContext, cronJobId: cronJobId || undefined, taskId: taskId || undefined }
           : undefined;
 
       const newTopic = await this.topicModel.create({

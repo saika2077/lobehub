@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { TaskModel } from '@/database/models/task';
 import { authedProcedure, router } from '@/libs/trpc/lambda';
 import { serverDatabase } from '@/libs/trpc/lambda/middleware';
+import { AiAgentService } from '@/server/services/aiAgent';
 
 const taskProcedure = authedProcedure.use(serverDatabase);
 
@@ -215,6 +216,82 @@ export const taskRouter = router({
       });
     }
   }),
+
+  run: taskProcedure
+    .input(
+      idInput.merge(
+        z.object({
+          prompt: z.string().optional(),
+        }),
+      ),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const { id, prompt: extraPrompt } = input;
+      try {
+        const model = new TaskModel(ctx.serverDB, ctx.userId);
+        const task = await resolveOrThrow(model, id);
+
+        // Ensure task has an assigned agent
+        if (!task.assigneeAgentId) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'Task has no assigned agent. Use --agent when creating or edit the task.',
+          });
+        }
+
+        // Build prompt from task instruction + optional extra prompt
+        let prompt = task.instruction;
+        if (task.description) {
+          prompt = `## Task: ${task.name || task.identifier}\n\n${task.description}\n\n## Instruction\n\n${task.instruction}`;
+        }
+        if (extraPrompt) {
+          prompt += `\n\n## Additional Context\n\n${extraPrompt}`;
+        }
+
+        // Update task status to running if not already
+        if (task.status === 'backlog' || task.status === 'paused') {
+          await model.updateStatus(task.id, 'running', { startedAt: new Date() });
+        }
+
+        // Call AiAgentService.execAgent
+        // assigneeAgentId can be either a raw agentId (agt_xxx) or a slug (inbox)
+        const agentRef = task.assigneeAgentId!;
+        const isSlug = !agentRef.startsWith('agt_');
+
+        const aiAgentService = new AiAgentService(ctx.serverDB, ctx.userId);
+        const result = await aiAgentService.execAgent({
+          ...(isSlug ? { slug: agentRef } : { agentId: agentRef }),
+          prompt,
+          taskId: task.id,
+          title: task.name || task.identifier,
+          trigger: 'task',
+          userInterventionConfig: { approvalMode: 'headless' },
+        });
+
+        // Update task topic count and current topic
+        if (result.topicId) {
+          await model.incrementTopicCount(task.id);
+          await model.updateCurrentTopic(task.id, result.topicId);
+        }
+
+        // Update heartbeat
+        await model.updateHeartbeat(task.id);
+
+        return {
+          ...result,
+          taskId: task.id,
+          taskIdentifier: task.identifier,
+        };
+      } catch (error) {
+        if (error instanceof TRPCError) throw error;
+        console.error('[task:run]', error);
+        throw new TRPCError({
+          cause: error,
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to run task',
+        });
+      }
+    }),
 
   pinDocument: taskProcedure
     .input(
