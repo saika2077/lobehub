@@ -31,6 +31,7 @@ export * from './service';
 export * from './session';
 export * from './skill';
 export * from './stepContext';
+export * from './task';
 export * from './tool';
 export * from './topic';
 export * from './user';

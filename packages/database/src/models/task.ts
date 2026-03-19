@@ -1,20 +1,9 @@
-import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import type { CheckpointConfig } from '@lobechat/types';
+import { and, desc, eq, inArray, isNotNull, isNull, ne, sql } from 'drizzle-orm';
 
 import type { NewTask, TaskItem } from '../schemas/task';
 import { taskDependencies, taskDocuments, tasks } from '../schemas/task';
 import type { LobeChatDatabase } from '../type';
-
-export interface CheckpointConfig {
-  onAgentRequest?: boolean;
-  tasks?: {
-    afterIds?: string[];
-    beforeIds?: string[];
-  };
-  topic?: {
-    after?: boolean;
-    before?: boolean;
-  };
-}
 
 export class TaskModel {
   private readonly userId: string;
@@ -121,7 +110,7 @@ export class TaskModel {
     if (assigneeAgentId) conditions.push(eq(tasks.assigneeAgentId, assigneeAgentId));
 
     if (parentTaskId === null) {
-      conditions.push(sql`${tasks.parentTaskId} IS NULL`);
+      conditions.push(isNull(tasks.parentTaskId));
     } else if (parentTaskId) {
       conditions.push(eq(tasks.parentTaskId, parentTaskId));
     }
@@ -223,6 +212,7 @@ export class TaskModel {
   }
 
   // Find stuck tasks (running but heartbeat timed out)
+  // Only checks tasks that have both lastHeartbeatAt and heartbeatTimeout set
   static async findStuckTasks(db: LobeChatDatabase): Promise<TaskItem[]> {
     return db
       .select()
@@ -230,7 +220,9 @@ export class TaskModel {
       .where(
         and(
           eq(tasks.status, 'running'),
-          sql`${tasks.lastHeartbeatAt} < now() - (${tasks.heartbeatTimeout} || ' seconds')::interval`,
+          isNotNull(tasks.lastHeartbeatAt),
+          isNotNull(tasks.heartbeatTimeout),
+          sql`${tasks.lastHeartbeatAt} < now() - make_interval(secs => ${tasks.heartbeatTimeout})`,
         ),
       );
   }
@@ -270,7 +262,7 @@ export class TaskModel {
         and(
           eq(taskDependencies.taskId, taskId),
           eq(taskDependencies.type, 'blocks'),
-          sql`${tasks.status} != 'completed'`,
+          ne(tasks.status, 'completed'),
         ),
       );
 
@@ -308,7 +300,7 @@ export class TaskModel {
       .where(
         and(
           eq(tasks.parentTaskId, parentTaskId),
-          sql`${tasks.status} != 'completed'`,
+          ne(tasks.status, 'completed'),
           eq(tasks.createdByUserId, this.userId),
         ),
       );
