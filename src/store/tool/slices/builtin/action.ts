@@ -1,3 +1,4 @@
+import { defaultUninstalledBuiltinTools } from '@lobechat/builtin-tools';
 import debug from 'debug';
 import { type SWRResponse } from 'swr';
 import useSWR from 'swr';
@@ -158,10 +159,15 @@ export class BuiltinToolActionImpl {
       enabled ? UNINSTALLED_BUILTIN_TOOLS : null,
       async () => {
         const userState = await userService.getUserState();
-        return userState?.settings?.tool?.uninstalledBuiltinTools ?? [];
+        const userUninstalled = userState?.settings?.tool?.uninstalledBuiltinTools;
+
+        // If user has never set their preference, use default (non-recommended tools are uninstalled)
+        if (userUninstalled === undefined) return defaultUninstalledBuiltinTools;
+
+        return userUninstalled;
       },
       {
-        fallbackData: [],
+        fallbackData: defaultUninstalledBuiltinTools,
         onSuccess: (data) => {
           this.#set(
             { uninstalledBuiltinTools: data, uninstalledBuiltinToolsLoading: false },

@@ -17,7 +17,7 @@ import { SkillsManifest } from '@lobechat/builtin-tool-skills';
 import { LobeToolsManifest } from '@lobechat/builtin-tool-tools';
 import { TopicReferenceManifest } from '@lobechat/builtin-tool-topic-reference';
 import { WebBrowsingManifest } from '@lobechat/builtin-tool-web-browsing';
-import { isDesktop } from '@lobechat/const';
+import { isDesktop, RECOMMENDED_SKILLS, RecommendedSkillType } from '@lobechat/const';
 import { type LobeBuiltinTool } from '@lobechat/types';
 
 /**
@@ -164,3 +164,15 @@ export const builtinTools: LobeBuiltinTool[] = [
     type: 'builtin',
   },
 ];
+
+/**
+ * Non-hidden builtin tools that are NOT in RECOMMENDED_SKILLS.
+ * These tools default to uninstalled and must be explicitly installed by the user from the Skill Store.
+ */
+const recommendedBuiltinIds = new Set(
+  RECOMMENDED_SKILLS.filter((s) => s.type === RecommendedSkillType.Builtin).map((s) => s.id),
+);
+
+export const defaultUninstalledBuiltinTools = builtinTools
+  .filter((t) => !t.hidden && !recommendedBuiltinIds.has(t.identifier))
+  .map((t) => t.identifier);
