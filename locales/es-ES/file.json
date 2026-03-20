@@ -129,6 +129,7 @@
   "title": "Recursos",
   "toggleLeftPanel": "Mostrar/Ocultar panel izquierdo",
   "uploadDock.body.collapse": "Colapsar",
+  "uploadDock.header.cancelAll": "Cancelar todo",
   "uploadDock.body.item.cancel": "Cancelar",
   "uploadDock.body.item.cancelled": "Cancelado",
   "uploadDock.body.item.done": "Subido",

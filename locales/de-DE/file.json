@@ -129,6 +129,7 @@
   "title": "Ressourcen",
   "toggleLeftPanel": "Linkes Panel ein-/ausblenden",
   "uploadDock.body.collapse": "Einklappen",
+  "uploadDock.header.cancelAll": "Alle abbrechen",
   "uploadDock.body.item.cancel": "Abbrechen",
   "uploadDock.body.item.cancelled": "Abgebrochen",
   "uploadDock.body.item.done": "Hochgeladen",

@@ -129,6 +129,7 @@
   "title": "Bronnen",
   "toggleLeftPanel": "Zijpaneel tonen/verbergen",
   "uploadDock.body.collapse": "Inklappen",
+  "uploadDock.header.cancelAll": "Alles annuleren",
   "uploadDock.body.item.cancel": "Annuleren",
   "uploadDock.body.item.cancelled": "Geannuleerd",
   "uploadDock.body.item.done": "Geüpload",

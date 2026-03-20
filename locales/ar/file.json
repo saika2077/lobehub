@@ -129,6 +129,7 @@
   "title": "الموارد",
   "toggleLeftPanel": "إظهار/إخفاء اللوحة الجانبية",
   "uploadDock.body.collapse": "طي",
+  "uploadDock.header.cancelAll": "إلغاء الكل",
   "uploadDock.body.item.cancel": "إلغاء",
   "uploadDock.body.item.cancelled": "تم الإلغاء",
   "uploadDock.body.item.done": "تم التحميل",

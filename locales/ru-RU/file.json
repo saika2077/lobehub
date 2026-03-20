@@ -129,6 +129,7 @@
   "title": "Ресурсы",
   "toggleLeftPanel": "Показать/Скрыть левую панель",
   "uploadDock.body.collapse": "Свернуть",
+  "uploadDock.header.cancelAll": "Отменить все",
   "uploadDock.body.item.cancel": "Отменить",
   "uploadDock.body.item.cancelled": "Отменено",
   "uploadDock.body.item.done": "Загружено",

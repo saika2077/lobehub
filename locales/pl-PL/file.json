@@ -129,6 +129,7 @@
   "title": "Zasoby",
   "toggleLeftPanel": "Pokaż/Ukryj panel boczny",
   "uploadDock.body.collapse": "Zwiń",
+  "uploadDock.header.cancelAll": "Anuluj wszystko",
   "uploadDock.body.item.cancel": "Anuluj",
   "uploadDock.body.item.cancelled": "Anulowano",
   "uploadDock.body.item.done": "Przesłano",

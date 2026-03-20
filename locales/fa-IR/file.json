@@ -129,6 +129,7 @@
   "title": "منابع",
   "toggleLeftPanel": "نمایش/مخفی کردن پنل کناری",
   "uploadDock.body.collapse": "جمع کردن",
+  "uploadDock.header.cancelAll": "لغو همه",
   "uploadDock.body.item.cancel": "لغو",
   "uploadDock.body.item.cancelled": "لغو شد",
   "uploadDock.body.item.done": "بارگذاری شد",

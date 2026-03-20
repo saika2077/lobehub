@@ -3,7 +3,7 @@ import { ActionIcon, Center, Flexbox, Icon, Text } from '@lobehub/ui';
 import { createStaticStyles, cssVar } from 'antd-style';
 import isEqual from 'fast-deep-equal';
 import { UploadIcon, XIcon } from 'lucide-react';
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence, m } from 'motion/react';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -161,7 +161,7 @@ const UploadDock = memo(() => {
 
       <AnimatePresence mode="wait">
         {expand ? (
-          <motion.div
+          <m.div
             animate={{ height: 400, opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             initial={{ height: 0, opacity: 0 }}
@@ -201,10 +201,10 @@ const UploadDock = memo(() => {
                 </Center>
               )}
             </Flexbox>
-          </motion.div>
+          </m.div>
         ) : (
           overviewUploadingStatus !== 'pending' && (
-            <motion.div
+            <m.div
               animate={{ opacity: 1, scaleY: 1 }}
               exit={{ opacity: 0, scaleY: 0 }}
               initial={{ opacity: 0, scaleY: 0 }}
@@ -224,7 +224,7 @@ const UploadDock = memo(() => {
                   insetInlineEnd: `${100 - totalUploadingProgress}%`,
                 }}
               />
-            </motion.div>
+            </m.div>
           )
         )}
       </AnimatePresence>

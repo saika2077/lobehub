@@ -129,6 +129,7 @@
   "title": "Ресурси",
   "toggleLeftPanel": "Показване/Скриване на ляв панел",
   "uploadDock.body.collapse": "Свий",
+  "uploadDock.header.cancelAll": "Отказ на всички",
   "uploadDock.body.item.cancel": "Отказ",
   "uploadDock.body.item.cancelled": "Отказано",
   "uploadDock.body.item.done": "Качено",

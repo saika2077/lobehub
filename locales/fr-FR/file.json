@@ -129,6 +129,7 @@
   "title": "Ressources",
   "toggleLeftPanel": "Afficher/Masquer le panneau gauche",
   "uploadDock.body.collapse": "Réduire",
+  "uploadDock.header.cancelAll": "Tout annuler",
   "uploadDock.body.item.cancel": "Annuler",
   "uploadDock.body.item.cancelled": "Annulé",
   "uploadDock.body.item.done": "Importé",

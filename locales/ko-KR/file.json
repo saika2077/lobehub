@@ -129,6 +129,7 @@
   "title": "리소스",
   "toggleLeftPanel": "왼쪽 패널 표시/숨기기",
   "uploadDock.body.collapse": "접기",
+  "uploadDock.header.cancelAll": "모두 취소",
   "uploadDock.body.item.cancel": "취소",
   "uploadDock.body.item.cancelled": "취소됨",
   "uploadDock.body.item.done": "업로드 완료",

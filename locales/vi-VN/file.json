@@ -129,6 +129,7 @@
   "title": "Tài Nguyên",
   "toggleLeftPanel": "Hiện/Ẩn Bảng Bên Trái",
   "uploadDock.body.collapse": "Thu Gọn",
+  "uploadDock.header.cancelAll": "Hủy tất cả",
   "uploadDock.body.item.cancel": "Hủy",
   "uploadDock.body.item.cancelled": "Đã hủy",
   "uploadDock.body.item.done": "Đã tải lên",

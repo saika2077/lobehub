@@ -129,6 +129,7 @@
   "title": "Kaynaklar",
   "toggleLeftPanel": "Sol Paneli Göster/Gizle",
   "uploadDock.body.collapse": "Daralt",
+  "uploadDock.header.cancelAll": "Tümünü iptal et",
   "uploadDock.body.item.cancel": "İptal Et",
   "uploadDock.body.item.cancelled": "İptal Edildi",
   "uploadDock.body.item.done": "Yüklendi",

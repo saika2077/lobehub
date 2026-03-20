@@ -129,6 +129,7 @@
   "title": "Recursos",
   "toggleLeftPanel": "Mostrar/Ocultar Painel Esquerdo",
   "uploadDock.body.collapse": "Recolher",
+  "uploadDock.header.cancelAll": "Cancelar tudo",
   "uploadDock.body.item.cancel": "Cancelar",
   "uploadDock.body.item.cancelled": "Cancelado",
   "uploadDock.body.item.done": "Enviado",

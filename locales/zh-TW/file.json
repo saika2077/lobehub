@@ -129,6 +129,7 @@
   "title": "資源",
   "toggleLeftPanel": "顯示/隱藏左側面板",
   "uploadDock.body.collapse": "收起",
+  "uploadDock.header.cancelAll": "全部取消",
   "uploadDock.body.item.cancel": "取消",
   "uploadDock.body.item.cancelled": "已取消",
   "uploadDock.body.item.done": "已上傳",

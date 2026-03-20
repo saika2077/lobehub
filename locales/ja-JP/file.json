@@ -129,6 +129,7 @@
   "title": "リソース",
   "toggleLeftPanel": "左パネルの表示/非表示を切り替え",
   "uploadDock.body.collapse": "折りたたむ",
+  "uploadDock.header.cancelAll": "すべてキャンセル",
   "uploadDock.body.item.cancel": "キャンセル",
   "uploadDock.body.item.cancelled": "キャンセルされました",
   "uploadDock.body.item.done": "アップロード完了",

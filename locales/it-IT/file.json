@@ -129,6 +129,7 @@
   "title": "Risorse",
   "toggleLeftPanel": "Mostra/Nascondi pannello sinistro",
   "uploadDock.body.collapse": "Comprimi",
+  "uploadDock.header.cancelAll": "Annulla tutto",
   "uploadDock.body.item.cancel": "Annulla",
   "uploadDock.body.item.cancelled": "Annullato",
   "uploadDock.body.item.done": "Caricato",
