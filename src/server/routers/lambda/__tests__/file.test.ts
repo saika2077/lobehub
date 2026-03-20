@@ -46,6 +46,9 @@ function createCallerWithCtx(partialCtx: any = {}) {
   };
 
   const documentModel = {};
+  const documentService = {
+    deleteDocuments: vi.fn().mockResolvedValue(undefined),
+  };
 
   const ctx = {
     serverDB: {} as any,
@@ -53,6 +56,7 @@ function createCallerWithCtx(partialCtx: any = {}) {
     asyncTaskModel,
     chunkModel,
     documentModel,
+    documentService,
     fileModel,
     fileService,
     knowledgeRepo,
@@ -130,6 +134,7 @@ vi.mock('@/server/services/file', () => ({
 }));
 
 const mockKnowledgeRepoQuery = vi.fn().mockResolvedValue([]);
+const mockDocumentServiceDeleteDocuments = vi.fn();
 
 vi.mock('@/database/repositories/knowledge', () => ({
   KnowledgeRepo: vi.fn(() => ({
@@ -139,6 +144,12 @@ vi.mock('@/database/repositories/knowledge', () => ({
 
 vi.mock('@/database/models/document', () => ({
   DocumentModel: vi.fn(() => ({})),
+}));
+
+vi.mock('@/server/services/document', () => ({
+  DocumentService: vi.fn(() => ({
+    deleteDocuments: mockDocumentServiceDeleteDocuments,
+  })),
 }));
 
 describe('fileRouter', () => {
@@ -519,6 +530,34 @@ describe('fileRouter', () => {
       await caller.removeFiles({ ids: ['invalid-1', 'invalid-2'] });
 
       expect(ctx.fileService.deleteFiles).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('deleteKnowledgeItemsByQuery', () => {
+    it('should delete page-backed knowledge items via documentService and plain files via fileModel', async () => {
+      mockKnowledgeRepoQuery.mockResolvedValue([
+        {
+          documentId: 'doc-1',
+          fileId: 'file-1',
+          fileType: 'custom/page',
+          id: 'doc-1',
+          sourceType: 'file',
+        },
+        {
+          documentId: null,
+          fileId: 'file-2',
+          fileType: 'text/plain',
+          id: 'file-2',
+          sourceType: 'file',
+        },
+      ]);
+      mockFileModelDeleteMany.mockResolvedValue([]);
+
+      const result = await caller.deleteKnowledgeItemsByQuery({});
+
+      expect(mockDocumentServiceDeleteDocuments).toHaveBeenCalledWith(['doc-1']);
+      expect(mockFileModelDeleteMany).toHaveBeenCalledWith(['file-2'], false);
+      expect(result).toEqual({ count: 2 });
     });
   });
 

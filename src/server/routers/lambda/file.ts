@@ -387,11 +387,17 @@ export const fileRouter = router({
         const filteredItems = filterKnowledgeItems(itemsToProcess, input.knowledgeBaseId);
 
         for (const item of filteredItems) {
-          if (item.sourceType === 'file') {
-            fileIds.push(item.id);
-          } else {
-            documentIds.push(item.id);
+          if (item.sourceType === 'document') {
+            documentIds.push(item.documentId ?? item.id);
+            continue;
           }
+
+          if (item.documentId) {
+            documentIds.push(item.documentId);
+            continue;
+          }
+
+          fileIds.push(item.fileId ?? item.id);
         }
 
         offset += itemsToProcess.length;
