@@ -374,8 +374,48 @@ export const taskRouter = router({
         const isSlug = !agentRef.startsWith('agt_');
 
         const aiAgentService = new AiAgentService(ctx.serverDB, ctx.userId);
+        const taskId = task.id;
+        const taskIdentifier = task.identifier;
+        const db = ctx.serverDB;
+        const userId = ctx.userId;
+
         const result = await aiAgentService.execAgent({
           ...(isSlug ? { slug: agentRef } : { agentId: agentRef }),
+          hooks: [
+            {
+              handler: async (event) => {
+                const taskModel = new TaskModel(db, userId);
+                await taskModel.updateHeartbeat(taskId);
+
+                const briefModel = new BriefModel(db, userId);
+                if (event.reason === 'done') {
+                  await briefModel.create({
+                    priority: 'info',
+                    summary: event.lastAssistantContent
+                      ? event.lastAssistantContent.slice(0, 200)
+                      : 'Topic completed successfully.',
+                    taskId,
+                    title: `${taskIdentifier} topic completed`,
+                    type: 'result',
+                  });
+                } else if (event.reason === 'error') {
+                  await briefModel.create({
+                    priority: 'urgent',
+                    summary: `Execution failed: ${event.errorMessage || 'Unknown error'}`,
+                    taskId,
+                    title: `${taskIdentifier} execution error`,
+                    type: 'error',
+                  });
+                }
+              },
+              id: 'task-on-complete',
+              type: 'onComplete' as const,
+              webhook: {
+                body: { taskId, userId },
+                url: '/api/workflows/task/on-topic-complete',
+              },
+            },
+          ],
           prompt,
           taskId: task.id,
           title: task.name || task.identifier,
