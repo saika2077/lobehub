@@ -1,4 +1,14 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const { mockMoveResource } = vi.hoisted(() => ({
+  mockMoveResource: vi.fn(),
+}));
+
+vi.mock('@/services/resource', () => ({
+  resourceService: {
+    moveResource: mockMoveResource,
+  },
+}));
 
 import { initialState } from '@/store/file/initialState';
 import { useFileStore } from '@/store/file/store';
@@ -19,6 +29,7 @@ const createResource = (overrides: Partial<ResourceItem> = {}): ResourceItem => 
 
 describe('resource actions', () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     useFileStore.setState(initialState);
   });
 
@@ -59,5 +70,33 @@ describe('resource actions', () => {
     expect(resourceList).toEqual([visibleResource]);
     expect(resourceMap.has(optimisticResource.id)).toBe(false);
     expect(resourceMap.get(completedResource.id)).toEqual(completedResource);
+  });
+
+  it('should remove a root item from the visible list when moving it into a folder', async () => {
+    const rootResource = createResource({
+      id: 'root-1',
+      name: 'Root resource',
+      parentId: null,
+    });
+    const movedResource = createResource({
+      id: 'root-1',
+      name: 'Root resource',
+      parentId: 'folder-a',
+    });
+
+    mockMoveResource.mockResolvedValue(movedResource);
+
+    useFileStore.setState({
+      queryParams: { parentId: null },
+      resourceList: [rootResource],
+      resourceMap: new Map([[rootResource.id, rootResource]]),
+    });
+
+    await useFileStore.getState().moveResource(rootResource.id, 'folder-a');
+
+    const { resourceList, resourceMap } = useFileStore.getState();
+
+    expect(resourceList).toEqual([]);
+    expect(resourceMap.has(rootResource.id)).toBe(false);
   });
 });

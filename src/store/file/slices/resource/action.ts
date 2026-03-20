@@ -583,7 +583,6 @@ export class ResourceActionImpl {
 
     const syncEngine = this.#getSyncEngine();
     const tx = syncEngine.createTransaction(`moveResource(${id})`);
-    const shouldKeepVisible = queryParams?.parentId == null;
     const movedResource: ResourceItem = {
       ...existing,
       _optimistic: {
@@ -596,6 +595,7 @@ export class ResourceActionImpl {
       parentId,
       updatedAt: new Date(),
     };
+    const shouldKeepVisible = !queryParams || this.#isResourceVisibleInCurrentQuery(movedResource);
 
     tx.set((draft) => {
       if (shouldKeepVisible) {
