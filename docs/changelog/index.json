@@ -3,6 +3,21 @@
   "cloud": [],
   "community": [
     {
+      "id": "2026-03-16-search",
+      "date": "2026-03-16",
+      "versionRange": ["2.1.38", "2.1.43"]
+    },
+    {
+      "id": "2026-02-08-runtime-auth",
+      "date": "2026-02-08",
+      "versionRange": ["2.1.6", "2.1.26"]
+    },
+    {
+      "id": "2026-01-27-v2",
+      "date": "2026-01-27",
+      "versionRange": ["2.0.1", "2.1.5"]
+    },
+    {
       "image": "/blog/assets7f3b38c1d76cceb91edb29d6b1eb60db.webp",
       "id": "2025-12-20-mcp",
       "date": "2025-12-20",
